@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Band Rang</title>
+<style>
+  :root{ --felt:#0f5d4a; --felt-dk:#0a4537; --cream:#f3ead6; --gold:#c9a23f; --ink:#16140f; --red:#d6453a; }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  body{margin:0; min-height:100vh; font-family:Georgia,'Times New Roman',serif; color:var(--cream);
+    background:radial-gradient(circle at 50% 30%, #14201c 0%, #0a120f 70%); display:flex; flex-direction:column;}
+  header{display:flex; justify-content:space-between; align-items:center; padding:12px 14px;}
+  .brand{display:flex; flex-direction:column; line-height:1;}
+  .brand .r{font-size:26px; font-weight:700; font-style:italic; color:var(--gold); letter-spacing:.5px;}
+  .brand .s{font-size:9px; letter-spacing:3px; text-transform:uppercase; color:#9bb3a8; margin-top:3px;}
+  .scorebar{display:flex; align-items:center; gap:8px;}
+  .chip{display:flex; flex-direction:column; align-items:center; padding:4px 11px; border-radius:10px; min-width:58px; border:1px solid rgba(201,162,63,.3);}
+  .chip.us{background:rgba(15,93,74,.5);} .chip.them{background:rgba(120,40,40,.35);}
+  .chip .lab{font-size:8px; text-transform:uppercase; letter-spacing:1px; color:#9bb3a8;}
+  .chip .num{font-size:20px; font-weight:700;}
+  .vs{font-size:10px; color:#6c8479; font-style:italic;}
+  .wrap{flex:1; display:flex; flex-direction:column; padding:0 12px 16px; max-width:520px; width:100%; margin:0 auto;}
+
+  .lobby{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:15px; text-align:center;}
+  .lobby h2{color:var(--gold); font-style:italic; margin:0; font-size:23px;}
+  .lobby p{color:#c7d3cb; font-size:14px; line-height:1.6; margin:0; max-width:380px;}
+  input{font-family:inherit; font-size:16px; padding:11px 14px; border-radius:10px; border:1px solid #d8cba8; background:var(--cream); color:var(--ink); width:220px; text-align:center;}
+  input.code{letter-spacing:6px; text-transform:uppercase; font-weight:700;}
+  .btn{background:linear-gradient(180deg,var(--gold),#a8842c); color:#1a1305; border:none; padding:12px 24px; font-size:15px; font-weight:700; border-radius:10px; cursor:pointer; font-family:inherit; letter-spacing:.5px; box-shadow:0 4px 14px rgba(0,0,0,.4);}
+  .btn:disabled{opacity:.4; cursor:default;}
+  .btn.ghost{background:transparent; color:var(--gold); border:1px solid var(--gold); box-shadow:none;}
+  .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:center;}
+  .or{color:#6c8479; font-size:12px; font-style:italic;}
+  .seatlist{display:flex; flex-direction:column; gap:6px;}
+  .seatrow{display:flex; align-items:center; gap:8px; font-size:14px; color:#dce7e0;}
+  .dot{width:9px; height:9px; border-radius:50%; background:#3a4d45;}
+  .dot.on{background:var(--gold);}
+  .codebig{font-size:38px; font-weight:700; letter-spacing:10px; color:var(--gold); font-style:italic;}
+  .hint{font-size:12px; color:#9bb3a8;}
+
+  .table{position:relative; flex:1; border-radius:22px; min-height:560px; overflow:hidden;
+    background:radial-gradient(ellipse at 50% 45%, var(--felt) 0%, var(--felt-dk) 80%);
+    border:3px solid #5a3e20; box-shadow:inset 0 0 60px rgba(0,0,0,.45), 0 8px 30px rgba(0,0,0,.5); transition:box-shadow .3s;}
+  .table.flash{box-shadow:inset 0 0 80px rgba(201,162,63,.5), 0 8px 30px rgba(0,0,0,.5);}
+
+  .infostack{position:absolute; top:10px; left:12px; display:flex; flex-direction:column; gap:5px; align-items:flex-start; max-width:150px; z-index:6;}
+  .roundb{font-size:13px; font-weight:700; color:#1a1305; background:var(--gold); padding:4px 11px; border-radius:14px;}
+  .pileb{display:flex; align-items:baseline; gap:5px; background:rgba(120,40,40,.6); padding:4px 12px; border-radius:12px;}
+  .pileb .n{font-size:22px; font-weight:700; color:#fff; line-height:1;}
+  .pileb .l{font-size:10px; color:#f0d0d0; text-transform:uppercase; letter-spacing:1px;}
+  .scorecard{background:rgba(0,0,0,.34); border-radius:12px; padding:6px 10px; display:flex; flex-direction:column; gap:3px; min-width:132px; border:1px solid rgba(201,162,63,.2);}
+  .sline{display:flex; justify-content:space-between; align-items:baseline; gap:10px;}
+  .sline .nm{font-size:11px; color:#9bb3a8;} .sline .nu{font-size:16px; font-weight:700;}
+  .hintb{font-size:9.5px; color:#d8c7a0; background:rgba(0,0,0,.32); padding:3px 8px; border-radius:10px; font-style:italic; line-height:1.3; max-width:150px;}
+
+  .trumpbadge{position:absolute; top:10px; right:12px; display:flex; align-items:center; gap:6px; background:var(--cream); padding:5px 11px; border-radius:20px; box-shadow:0 2px 8px rgba(0,0,0,.4);}
+  .trumpbadge .l{font-size:9px; text-transform:uppercase; letter-spacing:1px; color:#7a6a45; font-weight:700;}
+  .trumpbadge .sym{font-size:20px; line-height:1;} .trumpbadge .hid{font-size:12px; color:#7a6a45; font-style:italic;}
+  .bidbadge{position:absolute; top:44px; right:12px; font-size:11px; color:#1a1305; background:var(--gold); padding:3px 9px; border-radius:14px; font-weight:700;}
+
+  .seat{position:absolute; display:flex; flex-direction:column; align-items:center; gap:3px; z-index:5;}
+  .seat.top{top:8px; left:50%; transform:translateX(-50%);}
+  .seat.left{left:8px; top:42%; transform:translateY(-50%);}
+  .seat.right{right:8px; top:42%; transform:translateY(-50%);}
+  .avatar{width:36px; height:36px; border-radius:50%; background:#2a3833; border:2px solid var(--gold); display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:700;}
+  .seat.active .avatar{animation:pulse 1.2s ease-in-out infinite;}
+  .seatname{font-size:11px; color:#dce7e0;} .seat.active .seatname{color:var(--gold);}
+  .tag{font-size:9px; color:var(--gold); font-style:italic;}
+  .offline{opacity:.45;}
+
+  .felt{position:absolute; inset:80px 70px; border-radius:50%; border:1px dashed rgba(201,162,63,.18); display:flex; align-items:center; justify-content:center;}
+  .feltmsg{max-width:200px; text-align:center; font-size:13px; color:#dfe9e3; font-style:italic; line-height:1.4; padding:8px;}
+
+  .played{position:absolute; width:46px; height:64px; background:var(--cream); border-radius:7px; box-shadow:0 3px 10px rgba(0,0,0,.5); display:flex; flex-direction:column; align-items:center; justify-content:center; border:1px solid #d8cba8;}
+  .played.top{top:13%; left:50%; transform:translateX(-50%);}
+  .played.bottom{bottom:13%; left:50%; transform:translateX(-50%);}
+  .played.left{left:15%; top:50%; transform:translateY(-50%);}
+  .played.right{right:15%; top:50%; transform:translateY(-50%);}
+  .played .c{font-size:15px; font-weight:700; line-height:1;} .played .p{font-size:20px; line-height:1;}
+  .tdot{position:absolute; top:3px; right:3px; width:7px; height:7px; border-radius:50%; background:var(--gold);}
+
+  .panel{position:absolute; bottom:150px; left:50%; transform:translateX(-50%); background:rgba(10,18,15,.95); padding:12px 16px; border-radius:14px; z-index:20; border:1px solid var(--gold); display:flex; flex-direction:column; align-items:center; gap:8px; box-shadow:0 8px 30px rgba(0,0,0,.6); max-width:300px;}
+  .panel .t{font-size:12px; letter-spacing:1px; text-transform:uppercase; color:var(--gold);}
+  .suitbtns{display:flex; gap:8px;}
+  .suitbtn{width:48px; height:48px; font-size:24px; background:var(--cream); border:1px solid #d8cba8; border-radius:10px; cursor:pointer;}
+  .bidgrid{display:flex; flex-wrap:wrap; gap:6px; justify-content:center; max-width:270px;}
+  .bidbtn{width:38px; height:38px; font-size:16px; font-weight:700; background:var(--cream); color:#16140f; border:1px solid #d8cba8; border-radius:9px; cursor:pointer; font-family:inherit;}
+  .passbtn{background:transparent; color:#cdbd7f; border:1px solid #6c5a2f; padding:7px 18px; border-radius:9px; cursor:pointer; font-family:inherit; font-size:13px;}
+
+  .handbottom{position:absolute; bottom:8px; left:0; right:0; display:flex; flex-direction:column; align-items:center; gap:6px; z-index:8;}
+  .youtag{font-size:11px; color:var(--gold); letter-spacing:1px; font-style:italic; min-height:15px;}
+  .fan{display:flex; justify-content:center; padding-bottom:4px;}
+  .card{width:50px; height:72px; background:var(--cream); border-radius:8px; border:1px solid #d8cba8; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; box-shadow:0 3px 8px rgba(0,0,0,.4); padding:0; transition:transform .12s; font-family:inherit;}
+  .card .c{font-size:16px; font-weight:700; line-height:1;} .card .p{font-size:21px; line-height:1;}
+  .card.playable{box-shadow:0 0 0 2px var(--gold), 0 5px 12px rgba(0,0,0,.5);}
+  .card.playable:hover{transform:translateY(-14px);}
+  .card.dim{opacity:.45; filter:grayscale(.4); cursor:default;}
+
+  .overlay{position:absolute; inset:0; background:rgba(5,10,8,.84); display:flex; align-items:center; justify-content:center; z-index:30; border-radius:22px;}
+  .ocard{background:#14201c; border:1px solid var(--gold); border-radius:16px; padding:26px 24px; text-align:center; max-width:330px; display:flex; flex-direction:column; gap:12px;}
+  .ocard .t{font-size:17px; color:var(--gold); font-style:italic; line-height:1.4;}
+  .ocard .sc{font-size:13px; color:#c7d3cb;}
+  .toast{position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:#7a1f1f; color:#fff; padding:10px 18px; border-radius:10px; font-size:14px; z-index:50; opacity:0; transition:opacity .25s; pointer-events:none; max-width:80%; text-align:center;}
+  .toast.show{opacity:1;}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(201,162,63,.5);}50%{box-shadow:0 0 0 7px rgba(201,162,63,0);}}
+  @media (prefers-reduced-motion:reduce){.avatar{animation:none!important;}}
+  button:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+  .red{color:var(--red);} .black{color:var(--ink);}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><span class="r">Band Rang</span><span class="s">Hidden Trump &middot; Online</span></div>
+  <div class="scorebar" id="scorebar" style="visibility:hidden">
+    <div class="chip us"><span class="lab">Hands T1</span><span class="num" id="s0">0</span></div>
+    <div class="vs">vs</div>
+    <div class="chip them"><span class="lab">Hands T2</span><span class="num" id="s1">0</span></div>
+  </div>
+</header>
+<div class="wrap" id="wrap"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const SYM={S:"\u2660",H:"\u2665",D:"\u2666",C:"\u2663"};
+const SUIT_NAME={S:"Spades",H:"Hearts",D:"Diamonds",C:"Clubs"};
+const RED={H:true,D:true};
+const SUITS=["S","H","D","C"];
+let ws, state=null, me={seat:null,code:null,name:"",playerId:null};
+try{ me.playerId=sessionStorage.getItem("br_pid")||null; me.code=sessionStorage.getItem("br_code")||null; me.name=sessionStorage.getItem("br_name")||""; }catch(e){}
+
+function connect(then){
+  const proto=location.protocol==="https:"?"wss":"ws";
+  ws=new WebSocket(proto+"://"+location.host);
+  ws.onopen=()=>{ if(then) then(); };
+  ws.onclose=()=>toast("Connection lost. Refresh to rejoin.");
+  ws.onmessage=(ev)=>{
+    const m=JSON.parse(ev.data);
+    if(m.type==="joined"){ me.seat=m.seat; me.code=m.code; me.playerId=m.playerId;
+      try{sessionStorage.setItem("br_pid",m.playerId);sessionStorage.setItem("br_code",m.code);}catch(e){} }
+    else if(m.type==="state"){ state=m; me.seat=m.you; render(); }
+    else if(m.type==="error"){ toast(m.message); }
+  };
+}
+function sendMsg(o){ ws.send(JSON.stringify(o)); }
+let tt; function toast(t){ const el=document.getElementById("toast"); el.textContent=t; el.classList.add("show"); clearTimeout(tt); tt=setTimeout(()=>el.classList.remove("show"),2800); }
+
+function createRoom(){ const n=document.getElementById("nameInput").value.trim()||"Player"; me.name=n; try{sessionStorage.setItem("br_name",n);}catch(e){} connect(()=>sendMsg({type:"create",name:n,playerId:me.playerId})); }
+function joinRoom(){ const n=document.getElementById("nameInput").value.trim()||"Player"; const c=document.getElementById("codeInput").value.trim().toUpperCase(); if(c.length!==4)return toast("Enter the 4-letter code."); me.name=n; try{sessionStorage.setItem("br_name",n);}catch(e){} connect(()=>sendMsg({type:"join",code:c,name:n,playerId:me.playerId})); }
+function startGame(){ sendMsg({type:"start"}); }
+function bid(a){ sendMsg({type:"bid",amount:a}); }
+function pickTrump(s){ sendMsg({type:"pickTrump",suit:s}); }
+function playCard(id){ sendMsg({type:"play",cardId:id}); }
+function nextHand(){ sendMsg({type:"nextHand"}); }
+
+if(me.playerId&&me.code){ connect(()=>sendMsg({type:"rejoin",code:me.code,playerId:me.playerId})); }
+
+function render(){
+  const wrap=document.getElementById("wrap");
+  if(!state){ landing(wrap); return; }
+  document.getElementById("scorebar").style.visibility = state.phase==="lobby"?"hidden":"visible";
+  if(state.phase!=="lobby"){ document.getElementById("s0").textContent=state.scores[0]; document.getElementById("s1").textContent=state.scores[1]; }
+  if(state.phase==="lobby") lobby(wrap); else tableView(wrap);
+}
+function landing(wrap){
+  wrap.innerHTML=`<div class="lobby"><h2>Play Band Rang online</h2>
+    <p>Four players, two teams (seats 1&3 vs 2&4). Create a room, share the code, and everyone plays from their own phone.</p>
+    <input id="nameInput" placeholder="Your name" maxlength="16" value="${esc(me.name)}" />
+    <div class="row"><button class="btn" onclick="createRoom()">Create a room</button></div>
+    <div class="or">\u2014 or join \u2014</div>
+    <div class="row"><input id="codeInput" class="code" placeholder="CODE" maxlength="4" /><button class="btn ghost" onclick="joinRoom()">Join</button></div></div>`;
+}
+function lobby(wrap){
+  const seated=state.players.filter(p=>p&&p.connected).length;
+  wrap.innerHTML=`<div class="lobby"><h2>Room</h2><div class="codebig">${state.code}</div>
+    <p class="hint">Share this code. The game starts when all four seats are filled.</p>
+    <div class="seatlist">${state.players.map((p,i)=>`<div class="seatrow"><span class="dot ${p&&p.connected?'on':''}"></span><span>Seat ${i+1}${i===me.seat?' (you)':''}: ${p?esc(p.name):'<i style="color:#6c8479">empty</i>'}${p&&!p.connected?' <span style="color:#caa">(offline)</span>':''}</span></div>`).join("")}</div>
+    <p class="hint">Teams: seats 1 & 3 vs 2 & 4 \u2014 partners sit across.</p>
+    <button class="btn" onclick="startGame()" ${seated===4?'':'disabled'}>${seated===4?'Start the game':`Waiting (${seated}/4)`}</button></div>`;
+}
+// map absolute seat -> screen position (I'm always bottom)
+function pos(seat){ return ["bottom","left","top","right"][(seat-me.seat+4)%4]; }
+
+function tableView(wrap){
+  const playByPos={}; const src = state.trick.length?state.trick:(state.lastTrick?state.lastTrick.trick:[]);
+  src.forEach(pl=>playByPos[pos(pl.seat)]=pl);
+  const partnerSeat=(me.seat+2)%4;
+  const cardsRemaining=state.handCounts.reduce((a,b)=>a+b,0);
+  const completed=Math.floor((52-cardsRemaining-state.trick.length)/4);
+  const roundNum = state.phase==="playing" ? Math.min(13,completed+1) : null;
+  const bidTeam = state.highBid ? (state.highBid.seat%2) : null;
+
+  function seatBox(p){
+    let seat=null; for(let s=0;s<4;s++) if(pos(s)===p) seat=s;
+    if(seat===null||p==="bottom") return "";
+    const pl=state.players[seat];
+    const active=(state.phase==="playing"&&state.turn===seat)||(state.phase==="bidding"&&state.bidTurn===seat)||(state.phase==="pickTrump"&&state.trumpHolder===seat);
+    const nm=pl?esc(pl.name):"empty";
+    const isP=seat===partnerSeat;
+    const isHolder=state.trumpHolder===seat;
+    const bidShown = state.phase==="bidding"&&state.bids[seat]!=null ? (state.bids[seat]==="pass"?"pass":"bid "+state.bids[seat]) : "";
+    return `<div class="seat ${p} ${active?'active':''} ${pl&&!pl.connected?'offline':''}">
+      <div class="avatar">${nm[0]?nm[0].toUpperCase():'?'}</div>
+      <div class="seatname">${nm}${isP?' <span class="tag">partner</span>':''}${isHolder?' <span class="tag">\u2756</span>':''}</div>
+      ${bidShown?`<div class="tag">${bidShown}</div>`:''}
+      <div class="seatname" style="font-size:10px;color:#9bb3a8">${state.handCounts[seat]} cards</div></div>`;
+  }
+  function playedHtml(p){ const pl=playByPos[p]; if(!pl)return ""; const c=pl.card; const isT=state.trumpActive&&c.suit===state.trump; const col=RED[c.suit]?"red":"black";
+    return `<div class="played ${p} ${col}"><span class="c">${c.rank}</span><span class="p">${SYM[c.suit]}</span>${isT?'<span class="tdot"></span>':''}</div>`; }
+
+  const myTurn=state.turn===me.seat;
+  const handHtml=state.hand.map((c,i)=>{
+    const playable=state.phase==="playing"&&myTurn&&state.legal.includes(c.id);
+    const dim=state.phase==="playing"&&myTurn&&!state.legal.includes(c.id);
+    const col=RED[c.suit]?"red":"black";
+    return `<button class="card ${col} ${playable?'playable':''} ${dim?'dim':''}" style="margin-left:${i===0?0:-22}px;z-index:${i}" ${playable?`onclick="playCard('${c.id}')"`:'disabled'}><span class="c">${c.rank}</span><span class="p">${SYM[c.suit]}</span></button>`;
+  }).join("");
+
+  wrap.innerHTML=`<div class="table">
+    <div class="trumpbadge">${state.trumpActive?`<span class="l">Trump</span><span class="sym ${RED[state.trump]?'red':'black'}">${SYM[state.trump]}</span>`:`<span class="l">Trump</span><span class="hid">hidden</span>`}</div>
+    ${state.highBid?`<div class="bidbadge">Bid ${state.highBid.amount} \u00b7 ${bidTeam===(me.seat%2)?"your team":"opponents"}</div>`:''}
+    <div class="infostack">
+      <div class="roundb">${roundNum?`Round ${roundNum} / 13`:(state.phase==="bidding"?"Bidding":state.phase==="pickTrump"?"Choosing trump":"\u2014")}</div>
+      <div class="pileb"><span class="n">${state.pile}</span><span class="l">in pile</span></div>
+      <div class="scorecard">
+        <div class="sline"><span class="nm">Your team</span><span class="nu" style="color:${(me.seat%2)===bidTeam?'#c9a23f':'#dce7e0'}">${state.tricksWon[me.seat%2]}${state.highBid&&bidTeam===(me.seat%2)?` / ${state.highBid.amount}`:''}</span></div>
+        <div class="sline"><span class="nm">Opponents</span><span class="nu" style="color:${(1-(me.seat%2))===bidTeam?'#c9a23f':'#dce7e0'}">${state.tricksWon[1-(me.seat%2)]}${state.highBid&&bidTeam===(1-(me.seat%2))?` / ${state.highBid.amount}`:''}</span></div>
+      </div>
+      ${!state.trumpActive&&state.phase==="playing"?`<div class="hintb">Tricks pile up \u2014 no score until trump is revealed</div>`:''}
+    </div>
+    ${seatBox("top")}${seatBox("left")}${seatBox("right")}
+    <div class="felt">${playedHtml("top")}${playedHtml("left")}${playedHtml("right")}${playedHtml("bottom")}<div class="feltmsg">${esc(state.message)}</div></div>
+    ${biddingPanel()}
+    ${trumpPanel()}
+    <div class="handbottom"><div class="youtag">${myTurn&&state.phase==="playing"?"Your turn":(state.canBidNow?"Your bid":"")}</div><div class="fan">${handHtml}</div></div>
+    ${state.phase==="handover"?`<div class="overlay"><div class="ocard"><div class="t">${esc(state.message)}</div><div class="sc">Final tricks \u2014 T1 ${state.tricksWon[0]} \u00b7 T2 ${state.tricksWon[1]}</div><div class="sc">Match: T1 ${state.scores[0]} \u2013 ${state.scores[1]} T2</div><button class="btn" onclick="nextHand()">Deal next hand</button></div></div>`:''}
+  </div>`;
+
+  if(state.trumpActive && state.trick.length===0){ const t=wrap.querySelector(".table"); if(t){ t.classList.add("flash"); setTimeout(()=>t.classList.remove("flash"),900);} }
+}
+
+function biddingPanel(){
+  if(!state.canBidNow) return "";
+  const floor=state.bidFloor; const opts=[]; for(let b=floor;b<=13;b++)opts.push(b);
+  return `<div class="panel"><span class="t">Your bid (min ${floor})</span>
+    <div class="bidgrid">${opts.map(b=>`<button class="bidbtn" onclick="bid(${b})">${b}</button>`).join("")}</div>
+    <button class="passbtn" onclick="bid('pass')">Pass</button></div>`;
+}
+function trumpPanel(){
+  if(!state.isMyTrumpPick) return "";
+  return `<div class="panel"><span class="t">Choose trump (from your 5)</span>
+    <div class="suitbtns">${SUITS.map(s=>`<button class="suitbtn ${RED[s]?'red':'black'}" onclick="pickTrump('${s}')">${SYM[s]}</button>`).join("")}</div></div>`;
+}
+function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+render();
+</script>
+</body>
+</html>
