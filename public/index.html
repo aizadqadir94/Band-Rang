@@ -101,10 +101,7 @@
   .card.locked .small{font-size:8px; font-style:italic; margin-top:2px;}
 
   .overlay{position:absolute; inset:0; background:rgba(5,10,8,.84); display:flex; align-items:center; justify-content:center; z-index:30; border-radius:22px;}
-  .overlay.handover{background:rgba(5,10,8,.70); align-items:stretch; padding:14px;}
   .ocard{background:#14201c; border:1px solid var(--gold); border-radius:16px; padding:26px 24px; text-align:center; max-width:340px; display:flex; flex-direction:column; gap:12px;}
-  .handovercard{width:100%; max-width:460px; max-height:100%; padding:18px 14px; justify-content:center;}
-  .handtitle{font-size:24px!important;}
   .ocard .t{font-size:17px; color:var(--gold); font-style:italic; line-height:1.4;}
   .ocard .sc{font-size:13px; color:#c7d3cb;}
   .toast{position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:#7a1f1f; color:#fff; padding:10px 18px; border-radius:10px; font-size:14px; z-index:50; opacity:0; transition:opacity .25s; pointer-events:none; max-width:80%; text-align:center;}
@@ -116,15 +113,37 @@
 
   .seat.bottom{bottom:86px; left:50%; transform:translateX(-50%);}
   .spectatorbox{position:absolute; bottom:22px; left:50%; transform:translateX(-50%); color:#dce7e0; background:rgba(0,0,0,.35); border:1px solid rgba(201,162,63,.28); border-radius:14px; padding:8px 12px; font-size:13px; text-align:center; z-index:8;}
-  .skipstage{position:relative; min-height:330px; border-radius:16px; border:1px solid rgba(201,162,63,.55); background-size:cover; background-position:center; overflow:hidden; display:flex; flex-direction:column; justify-content:space-between; padding:12px; box-shadow:inset 0 0 40px rgba(0,0,0,.55);}
-  .skipstage.done{min-height:90px; justify-content:center; background:rgba(0,0,0,.25);}
-  .skipnote{font-size:14px; color:#f3ead6; background:rgba(0,0,0,.50); border:1px solid rgba(201,162,63,.3); border-radius:12px; padding:8px 10px; line-height:1.35;}
-  .skipgrid{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:10px 0 0; flex:1; align-items:stretch;}
-  .skipcard{position:relative; background:rgba(0,0,0,.42); border:1px solid rgba(201,162,63,.45); border-radius:14px; padding:12px; min-width:0; min-height:210px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; overflow:visible;}
-  .skipname{position:absolute; top:10px; left:8px; right:8px; font-size:13px; color:#dce7e0; text-align:center; font-weight:700;}
-  .skipcount{position:absolute; bottom:10px; left:8px; right:8px; font-size:12px; color:#dce7e0; text-align:center; background:rgba(0,0,0,.4); border-radius:10px; padding:4px;}
-  .skipbtn{position:relative; transition:transform .14s ease; white-space:nowrap; padding:13px 16px; font-size:13px; z-index:2;}
-  .skipdone{color:var(--gold); font-weight:700; background:rgba(0,0,0,.45); border-radius:12px; padding:10px;}
+  .skipgrid{display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin:12px 0;}
+  .skipcard{background:rgba(0,0,0,.28); border:1px solid rgba(201,162,63,.25); border-radius:14px; padding:10px; min-width:125px; min-height:84px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; overflow:hidden;}
+  .skipname{font-size:12px; color:#dce7e0;}
+  .skipcount{font-size:10px; color:#9bb3a8;}
+  .skipbtn{position:relative; transition:transform .14s ease; white-space:nowrap; padding:10px 12px; font-size:12px;}
+  .skipdone{color:var(--gold); font-weight:700;}
+
+
+  .trumpreveal{position:absolute;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:40;border-radius:22px;animation:fadeReveal 2s ease forwards;pointer-events:none;}
+  .trumprevealbox{display:flex;flex-direction:column;align-items:center;gap:12px;transform:scale(.9);animation:popReveal 2s ease forwards;}
+  .revealtext{font-size:24px;color:var(--gold);font-style:italic;text-shadow:0 3px 12px #000;}
+  .bigcard{width:132px;height:184px;background:var(--cream);border:2px solid #d8cba8;border-radius:16px;box-shadow:0 16px 50px rgba(0,0,0,.75),0 0 0 4px rgba(201,162,63,.45);display:flex;flex-direction:column;align-items:center;justify-content:center;}
+  .bigcard .c{font-size:48px;font-weight:800;line-height:1;}.bigcard .p{font-size:66px;line-height:1;}
+  @keyframes popReveal{0%{transform:scale(.35) rotate(-8deg);opacity:0}15%{transform:scale(1.08) rotate(2deg);opacity:1}30%,75%{transform:scale(1) rotate(0);opacity:1}100%{transform:scale(.92);opacity:0}}
+  @keyframes fadeReveal{0%,78%{opacity:1}100%{opacity:0}}
+  .overlay.handover{background:rgba(5,10,8,.62);align-items:center;justify-content:center;padding:12px;}
+  .lossstage{position:relative;width:100%;max-width:460px;min-height:520px;border:2px solid var(--gold);border-radius:18px;background-size:cover;background-position:center;overflow:hidden;box-shadow:inset 0 0 90px rgba(0,0,0,.55),0 8px 30px rgba(0,0,0,.55);display:flex;flex-direction:column;justify-content:space-between;padding:24px 18px 20px;}
+  .lossstage:before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.20),rgba(0,0,0,.05) 42%,rgba(0,0,0,.62));pointer-events:none;}
+  .losstop,.lossbuttons,.lossactions{position:relative;z-index:2;}
+  .losstitle{font-size:26px;line-height:1.15;color:#fff;font-style:italic;font-weight:700;text-shadow:0 3px 12px #000;text-align:center;}
+  .losssub{font-size:21px;line-height:1.25;color:#fff;font-style:italic;font-weight:700;text-shadow:0 3px 12px #000;text-align:center;margin-top:3px;}
+  .lossbuttons{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:center;justify-items:center;min-height:230px;margin-top:22px;}
+  .lossslot{position:relative;min-height:145px;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:visible;}
+  .lossbtn{min-width:138px;padding:14px 18px;font-size:17px;border-radius:12px;transition:transform .12s ease;white-space:nowrap;}
+  .lossbtn.done{background:linear-gradient(180deg,#d6bd68,#9c7a25);}
+  .lossname{margin-top:10px;font-size:16px;color:#fff;text-shadow:0 3px 8px #000;text-align:center;font-weight:700;}
+  .losstaps{margin-top:5px;font-size:12px;color:#f3ead6;text-shadow:0 2px 7px #000;background:rgba(0,0,0,.35);border-radius:10px;padding:3px 8px;}
+  .lossactions{display:grid;grid-template-columns:1.15fr .85fr;gap:14px;align-items:center;margin-top:20px;}
+  .lossactions .btn{min-height:74px;font-size:19px;border-radius:14px;background:linear-gradient(180deg,rgba(201,162,63,.92),rgba(151,118,38,.92));}
+  .lossactions .btn.ghost{background:rgba(0,0,0,.25);color:var(--gold);border:1px solid var(--gold);}
+  @media(max-width:420px){.lossstage{min-height:500px;padding:22px 14px 18px}.losssub{font-size:19px}.lossbtn{min-width:124px;font-size:16px}.lossactions .btn{font-size:17px;min-height:68px}}
 
 </style>
 </head>
