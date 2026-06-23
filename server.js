@@ -23,6 +23,10 @@ const MIME = {
 };
 const server = http.createServer((req, res) => {
   let urlPath = decodeURIComponent(req.url.split("?")[0]);
+  if (urlPath === "/healthz" || urlPath === "/health") {
+    res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+    return res.end(JSON.stringify({ ok: true, rooms: rooms.size, uptime: Math.round(process.uptime()) }));
+  }
   if (urlPath === "/") urlPath = "/index.html";
   const publicRoot = path.join(__dirname, "public");
   const filePath = path.join(publicRoot, urlPath);
@@ -121,7 +125,8 @@ function newRoom(code) {
     pile: 0,
     lastWinnerSeat: null,
     liveTrickResolved: false,
-    tricksWon: [0, 0],              // raw tricks taken this hand by each team
+    tricksWon: [0, 0],              // picked/captured tricks this hand by each team
+    tricksPlayed: 0,                // completed tricks this hand; used for round display
     scores: [0, 0],                    // net score: +bid if made, -2×bid if failed
     khoti: null,
     loserTeam: null,                   // which team lost the most recent hand (0 or 1)
@@ -206,6 +211,7 @@ function stateFor(room, seat, isSpectator = false) {
     lastTrick: publicLastTrick(room.lastTrick),
     pile: room.pile,
     tricksWon: room.tricksWon,
+    tricksPlayed: room.tricksPlayed,
     scores: room.scores,
     khoti: room.khoti,
     loserTeam: room.loserTeam,
@@ -253,6 +259,7 @@ function startHand(room) {
   room.lastWinnerSeat = null;
   room.liveTrickResolved = false;
   room.tricksWon = [0, 0];
+  room.tricksPlayed = 0;
   room.khoti = null;
   room.loserTeam = null;
   room.skipsDone = [false, false, false, false];
@@ -263,12 +270,12 @@ function startHand(room) {
   broadcast(room);
 }
 
-// For a bid of exactly 8: rearrange the back-8 portion of the deck so the bidding team gets
+// For a bid of exactly 9: rearrange the back-8 portion of the deck so the bidding team gets
 // NO trump cards in their remaining 8 — every leftover trump goes to the two opponents.
 // (The two opponents have 16 back-deal slots, at most 13 trumps exist, so this always fits.)
 // Mirrors the offline build exactly.
 function arrangeBackEightForBid(room) {
-  if (!room.highBid || room.highBid.amount !== 8) return;
+  if (!room.highBid || room.highBid.amount !== 9) return;
   const { deck, idx, order } = room.pending;
   const trumpSuit = room.trump;
   const bidderSeat = room.trumpHolder;
@@ -322,7 +329,7 @@ function applyTrumpPick(room, cardId) {
   room.trump = card.suit;
   room.trumpCard = card;
   room.trumpCardId = card.id;
-  arrangeBackEightForBid(room);   // on a bid of 8, steer all trumps to the opponents
+  arrangeBackEightForBid(room);   // on a bid of 9, steer all trumps to the opponents
   dealRemaining(room);            // now everyone gets their full 13
   room.phase = "playing";
   room.turn = room.trumpHolder;   // bid winner leads
@@ -360,38 +367,68 @@ function resolveTrick(room) {
     const winner = trickWinner(room.trick, room.trump, room.trumpActive);
     const winningTeam = TEAM_OF(winner);
 
-    // Count the actual trick immediately. This is what decides bid success/failure.
-    room.tricksWon[winningTeam] += 1;
-
+    // A completed trick always goes into the middle pile first.
+    // The left hand score is picked/captured pile tricks only, never raw trick wins.
+    room.tricksPlayed += 1;
     const newPile = room.pile + 1;
-    const scoopEligible = room.trumpActive && room.liveTrickResolved;
-    const scoopTeam = scoopEligible && room.lastWinnerSeat !== null && winner === room.lastWinnerSeat
-      ? TEAM_OF(winner) : null;
     const cardsLeft = room.hands.reduce((n, h) => n + h.length, 0);
     const handDone = cardsLeft === 0;
 
-    if (scoopTeam !== null) {
-      room.pile = 0;
-      room.lastScoop = { seat: winner, count: newPile, id: Date.now() };
-      room.message = `${room.seats[winner].name} won 2 in a row — scooped ${newPile} trick${newPile > 1 ? "s" : ""} for ${teamName(scoopTeam)}.`;
-    } else {
-      room.pile = newPile;
-      room.message = `${room.seats[winner].name} won the trick. Pile is now ${newPile}.`;
+    // Nothing can be picked before trump is revealed.
+    // After trump is revealed, the SAME PLAYER must win two live-trump tricks in a row.
+    // The captured pile is then added to that player's TEAM score.
+    const samePlayerTwoLiveWins =
+      room.trumpActive &&
+      room.liveTrickResolved &&
+      room.lastWinnerSeat === winner;
+
+    let pickedTeam = null;
+    let pickedCount = 0;
+    let didScoop = false;
+
+    if (samePlayerTwoLiveWins) {
+      pickedTeam = winningTeam;
+      pickedCount = newPile;
+      didScoop = true;
+    } else if (handDone) {
+      // On the final trick, the final winner picks whatever remains in the pile.
+      // If trump was still hidden before the final trick, maybeAutoRevealFinalTrick() reveals it first.
+      pickedTeam = winningTeam;
+      pickedCount = newPile;
     }
 
-    // After a scoop, reset consecutive-win tracking.
-    // Otherwise the same player winning the next trick would incorrectly scoop again immediately.
-    room.lastWinnerSeat = scoopTeam !== null ? null : winner;
+    if (pickedTeam !== null) {
+      room.tricksWon[pickedTeam] += pickedCount;
+      room.pile = 0;
+      if (didScoop) {
+        room.lastScoop = { seat: winner, count: pickedCount, id: Date.now() };
+        room.message = `${room.seats[winner].name} picked ${pickedCount} from the pile.`;
+      } else {
+        room.message = `${room.seats[winner].name} won the final trick and picked the remaining ${pickedCount}.`;
+      }
+    } else {
+      room.pile = newPile;
+      room.message = room.trumpActive
+        ? `${room.seats[winner].name} won the live trick. Pile is now ${newPile}.`
+        : `${room.seats[winner].name} won the trick. Trump is still hidden; pile is now ${newPile}.`;
+    }
+
+    // Consecutive-pick tracking is only for live trump tricks.
+    // Before trump reveal, lastWinnerSeat must not create any future pickup eligibility.
+    if (didScoop) room.lastWinnerSeat = null;
+    else room.lastWinnerSeat = room.trumpActive ? winner : null;
+
     room.lastTrick = { trick: room.trick, winner };
     room.trick = [];
-    if (room.trumpActive) room.liveTrickResolved = true;
+    room.lastScoop = didScoop ? room.lastScoop : null;
+    room.liveTrickResolved = room.trumpActive ? true : false;
 
     const bidTeam = TEAM_OF(room.highBid.seat);
     const defendTeam = 1 - bidTeam;
     const bid = room.highBid.amount;
-    const defenderStopTarget = 14 - bid; // e.g. bid 9 => defenders need 5 to make 9 impossible.
+    const defenderStopTarget = 14 - bid; // e.g. bid 9 => defenders need to pick 5.
 
-    // Stop immediately when the result is already mathematically decided.
+    // Stop immediately when the picked/captured score decides the hand.
     if (room.tricksWon[bidTeam] >= bid) {
       endHand(room, [...room.tricksWon], "bid made early");
       return;
@@ -457,6 +494,7 @@ function resetToLobby(room) {
   room.lastWinnerSeat = null;
   room.liveTrickResolved = false;
   room.tricksWon = [0, 0];
+  room.tricksPlayed = 0;
   room.scores = [0, 0];
   room.khoti = null;
   room.loserTeam = null;
@@ -505,7 +543,7 @@ wss.on("connection", (ws) => {
     setTimeout(() => {
       const r = rooms.get(ws.roomCode);
       if (r && connectedCount(r) === 0) rooms.delete(ws.roomCode);
-    }, 120000);
+    }, 30 * 60 * 1000);
   });
 });
 
@@ -638,13 +676,21 @@ function handle(ws, msg) {
       const card = hand.find((c) => c.id === msg.cardId);
       if (!card) return;
       const lead = room.trick.length ? room.trick[0].card.suit : null;
-      const hasLead = lead ? hand.some((c) => c.suit === lead) : true;
+
+      // While trump is hidden, the setter's exact hidden trump card is locked and should
+      // NOT count as a follow-suit card. If it is the setter's only card in the led suit,
+      // the setter is void and their vaddrang/waste card is played face down.
+      const handForFollowCheck = (!room.trumpActive && ws.seat === room.trumpHolder && room.trumpCardId)
+        ? hand.filter((c) => c.id !== room.trumpCardId)
+        : hand;
+      const hasLead = lead ? handForFollowCheck.some((c) => c.suit === lead) : true;
       const isDefender = room.trumpHolder != null && TEAM_OF(ws.seat) !== TEAM_OF(room.trumpHolder);
-      const isBidderTeam = room.trumpHolder != null && TEAM_OF(ws.seat) === TEAM_OF(room.trumpHolder);
+      const isTrumpSetter = room.trumpHolder != null && ws.seat === room.trumpHolder;
       let faceDown = false;
 
-      // Bidding team void in lead suit before reveal: play face down to preserve hidden trump.
-      if (lead && !hasLead && !room.trumpActive && isBidderTeam) {
+      // Only the trump setter plays vaddrang/waste face down before trump reveal.
+      // The setter's partner plays face up.
+      if (lead && !hasLead && !room.trumpActive && isTrumpSetter) {
         faceDown = true;
       }
 
