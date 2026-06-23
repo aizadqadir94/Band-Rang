@@ -45,13 +45,12 @@
   .brand { font-size:22px; color:var(--gold); font-style:italic; font-weight:700; }
   .roomtag { font-size:12px; color:#8fa89d; font-family:'Helvetica Neue',sans-serif; letter-spacing:1px; }
   .scorebar { display:flex; gap:8px; align-items:center; }
-  .chip { display:flex; flex-direction:column; align-items:center; padding:6px 13px; border-radius:11px;
-    min-width:72px; border:1px solid rgba(201,162,63,.3); }
-  .chip .lbl { font-size:8px; text-transform:uppercase; letter-spacing:1px; color:#9bb3a8; font-family:'Helvetica Neue',sans-serif; line-height:1.15; }
-  .chip .side { font-size:10px; text-transform:uppercase; letter-spacing:1.1px; color:#d7c588; font-family:'Helvetica Neue',sans-serif; line-height:1.1; }
-  .chip .num { font-size:24px; font-weight:700; line-height:1; margin-top:2px; }
-  .chip.us { background:linear-gradient(180deg,rgba(15,93,74,.62),rgba(15,93,74,.35)); }
-  .chip.them { background:linear-gradient(180deg,rgba(150,52,52,.54),rgba(150,52,52,.3)); }
+  .chip { display:flex; flex-direction:column; align-items:center; padding:5px 12px; border-radius:11px;
+    min-width:56px; border:1px solid rgba(201,162,63,.3); }
+  .chip .lbl { font-size:8px; text-transform:uppercase; letter-spacing:1px; color:#9bb3a8; font-family:'Helvetica Neue',sans-serif; }
+  .chip .num { font-size:22px; font-weight:700; }
+  .chip.us { background:linear-gradient(180deg,rgba(15,93,74,.55),rgba(15,93,74,.3)); }
+  .chip.them { background:linear-gradient(180deg,rgba(150,52,52,.5),rgba(150,52,52,.28)); }
 
   .table { flex:1; position:relative; margin:6px 10px 10px; border-radius:26px;
     background:radial-gradient(ellipse at 50% 42%, var(--felt) 0%, var(--felt-dk) 80%);
@@ -59,18 +58,13 @@
     min-height:560px; overflow:hidden; transition:box-shadow .4s; }
   .table.flash { box-shadow:inset 0 0 120px rgba(201,162,63,.5), 0 12px 40px rgba(0,0,0,.6); }
 
-  .infoTop { position:absolute; top:10px; left:12px; display:flex; flex-direction:column; gap:7px; z-index:6; max-width:46%; }
+  .infoTop { position:absolute; top:10px; left:12px; display:flex; flex-direction:column; gap:6px; z-index:6; max-width:46%; }
   .roundBadge { font-size:12px; font-weight:700; color:#1a1305; background:var(--gold);
-    padding:5px 14px; border-radius:16px; align-self:flex-start; font-family:'Helvetica Neue',sans-serif; }
-  .pileBadge { display:flex; align-items:baseline; gap:7px; background:rgba(150,52,52,.72);
-    padding:6px 15px; border-radius:12px; align-self:flex-start; min-width:92px; }
-  .pileBadge .n { font-size:24px; font-weight:800; color:#fff; } .pileBadge .l { font-size:10px; color:#f0d0d0;
+    padding:4px 11px; border-radius:13px; align-self:flex-start; font-family:'Helvetica Neue',sans-serif; }
+  .pileBadge { display:flex; align-items:baseline; gap:5px; background:rgba(150,52,52,.7);
+    padding:4px 11px; border-radius:12px; align-self:flex-start; }
+  .pileBadge .n { font-size:20px; font-weight:700; color:#fff; } .pileBadge .l { font-size:9px; color:#f0d0d0;
     text-transform:uppercase; letter-spacing:1px; font-family:'Helvetica Neue',sans-serif; }
-  .roundPanel { background:rgba(5,14,11,.74); border:1px solid rgba(201,162,63,.24); border-radius:12px; padding:9px 12px; min-width:190px; box-shadow:0 4px 14px rgba(0,0,0,.25); }
-  .roundRow { display:flex; justify-content:space-between; align-items:baseline; gap:18px; font-size:14px; color:#dce7e0; line-height:1.55; }
-  .roundRow .score { font-size:22px; color:var(--gold); font-weight:800; min-width:58px; text-align:right; }
-  .roundRow .score.opp { color:#fff; }
-  .roundHint { margin-top:4px; font-size:10px; color:#9bb3a8; font-family:'Helvetica Neue',sans-serif; letter-spacing:.5px; text-transform:uppercase; }
   .trumpBadge { position:absolute; top:10px; right:12px; display:flex; align-items:center; gap:6px;
     background:var(--cream); padding:5px 11px; border-radius:20px; z-index:7; box-shadow:0 2px 8px rgba(0,0,0,.4); }
   .trumpBadge .l { font-size:8px; text-transform:uppercase; letter-spacing:1px; color:#8a784e; font-weight:700; font-family:'Helvetica Neue',sans-serif; }
@@ -132,18 +126,6 @@
   .passbtn { background:transparent; color:#d2c184; border:1px solid #6c5a2f; padding:8px 20px; border-radius:9px; font-family:'Helvetica Neue',sans-serif; }
   .resetTop { background:rgba(142,36,36,.24); color:#ffd6cf; border:1px solid rgba(255,160,145,.5);
     padding:7px 10px; border-radius:10px; font-size:11px; font-weight:700; font-family:'Helvetica Neue',sans-serif; white-space:nowrap; }
-  @media (max-width: 520px) {
-    .topbar { padding:9px 10px; gap:6px; }
-    .brand { font-size:19px; }
-    .scorebar { gap:5px; }
-    .chip { min-width:58px; padding:5px 8px; }
-    .chip .num { font-size:21px; }
-    .infoTop { max-width:52%; }
-    .roundPanel { min-width:168px; padding:8px 10px; }
-    .roundRow { font-size:13px; gap:10px; }
-    .roundRow .score { font-size:20px; min-width:52px; }
-    .resetTop { padding:7px 9px; }
-  }
 
   /* center trump picker */
   .trumpPickPanel { position:absolute; inset:0; z-index:22; display:flex; flex-direction:column; align-items:center; justify-content:center;
@@ -311,12 +293,10 @@ function connect() {
   ws.onopen = () => {
     connbar.classList.add("hidden");
     startPing();
-    // auto-rejoin if we were in a room. Do not depend on the in-memory joinInfo;
-    // after a full page refresh only localStorage survives.
-    if (store.code && store.playerId) {
+    // auto-rejoin if we were in a room
+    if (store.code && joinInfo) {
       send({ type: "rejoin", code: store.code, playerId: store.playerId });
     }
-    send({ type: "ping" });
   };
   ws.onmessage = (ev) => {
     let m; try { m = JSON.parse(ev.data); } catch { return; }
@@ -333,13 +313,10 @@ function connect() {
 }
 function startPing() {
   stopPing();
-  send({ type: "ping" });
-  pingTimer = setInterval(() => { try { send({ type: "ping" }); } catch {} }, 15000);
+  pingTimer = setInterval(() => { try { send({ type: "ping" }); } catch {} }, 20000);
 }
 function stopPing() { if (pingTimer) clearInterval(pingTimer); pingTimer = null; }
 function send(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
-document.addEventListener("visibilitychange", () => { if (!document.hidden) send({ type: "ping" }); });
-window.addEventListener("focus", () => send({ type: "ping" }));
 
 function onMessage(m) {
   switch (m.type) {
@@ -518,11 +495,12 @@ function renderTable() {
     let meta = "";
     if (s.phase === "bidding" && s.bids[seat] != null) meta = s.bids[seat] === "pass" ? "pass" : "bid " + s.bids[seat];
     else if (s.trumpHolder === seat && s.highBid) meta = "bid " + s.highBid.amount;
+    const backs = Array.from({length: Math.min(cnt, 8)}).map(() => `<span class="miniBack"></span>`).join("");
     return `<div class="seat ${pos} ${active ? "active" : ""} ${p && !p.connected ? "discon" : ""}">
       <div class="avatar">${p ? escapeHtml(p.name[0] || "?").toUpperCase() : "?"}</div>
       <div class="nm">${p ? escapeHtml(p.name) : "—"}</div>
       <div class="meta">${meta}</div>
-      <div class="down"><span class="cnt">${cnt}</span></div>
+      <div class="down">${backs}<span class="cnt">${cnt}</span></div>
     </div>`;
   }).join("");
 
@@ -574,30 +552,15 @@ function renderTable() {
   else if (s.phase === "pickTrump" && s.isMyTrumpPick) youTag = "Pick your hidden trump card";
   else if (s.phase === "playing" && s.isMyTurn) youTag = "Your turn";
 
-  // match score, always relative to this viewer
-  const myTeam = me != null ? TEAM_OF(me) : 0;
-  const oppTeam = 1 - myTeam;
-  const usName = me != null ? "YOU" : "TEAM 1";
-  const themName = me != null ? "OPP" : "TEAM 2";
-  const usScore = me != null ? s.scores[myTeam] : s.scores[0];
-  const themScore = me != null ? s.scores[oppTeam] : s.scores[1];
-
-  // current hand / round tracking. tricksWon is picked/captured pile score;
-  // tricksPlayed is the actual number of completed tricks.
-  const tricksPlayed = s.tricksPlayed ?? 0;
-  const roundNo = s.phase === "handover" ? Math.max(1, tricksPlayed) : Math.min(13, tricksPlayed + 1);
-  const bidTeam = s.highBid ? TEAM_OF(s.highBid.seat) : null;
-  const bidAmount = s.highBid ? s.highBid.amount : null;
-  const myRoundScore = me != null ? (s.tricksWon?.[myTeam] ?? 0) : (s.tricksWon?.[0] ?? 0);
-  const oppRoundScore = me != null ? (s.tricksWon?.[oppTeam] ?? 0) : (s.tricksWon?.[1] ?? 0);
-  const myRoundTarget = bidTeam === myTeam && bidAmount ? ` / ${bidAmount}` : "";
-  const oppRoundTarget = bidTeam === oppTeam && bidAmount ? ` / ${bidAmount}` : "";
-  const defenderNeed = bidAmount ? 14 - bidAmount : null;
-  const handHint = bidAmount
-    ? (bidTeam === myTeam
-        ? `You bid ${bidAmount}. Opponents stop you at ${defenderNeed}.`
-        : `Opponents bid ${bidAmount}. Your team stops them at ${defenderNeed}.`)
-    : "No bid locked yet.";
+  // net match score shown from this viewer's perspective.
+  // Only the positive margin is displayed: leader gets the margin, trailing team gets 0.
+  const myTeamForScore = me != null ? TEAM_OF(me) : 0;
+  const oppTeamForScore = 1 - myTeamForScore;
+  const netForMe = s.scores[myTeamForScore] - s.scores[oppTeamForScore];
+  const usName = me != null ? "YOU" : "T1";
+  const themName = me != null ? "OPP" : "T2";
+  const usScore = Math.max(0, netForMe);
+  const themScore = Math.max(0, -netForMe);
 
   // match point: within 8 of the 52 khoti threshold
   const margin = s.scores[0] - s.scores[1];
@@ -613,8 +576,8 @@ function renderTable() {
     <div class="topbar">
       <div><div class="brand">Band Rang</div><div class="roomtag">Room ${escapeHtml(s.code)}</div></div>
       <div class="scorebar">
-        <div class="chip us"><span class="lbl">NET</span><span class="side">${usName}</span><span class="num">${usScore}</span></div>
-        <div class="chip them"><span class="lbl">NET</span><span class="side">${themName}</span><span class="num">${themScore}</span></div>
+        <div class="chip us"><span class="lbl">${usName}</span><span class="num">${usScore}</span></div>
+        <div class="chip them"><span class="lbl">${themName}</span><span class="num">${themScore}</span></div>
         ${canResetDuringPlay ? `<button class="resetTop" id="resetTopBtn">Reset</button>` : ""}
       </div>
     </div>
@@ -636,13 +599,8 @@ function renderTable() {
           : `<span class="h">hidden</span>`}
       </div>
       <div class="infoTop">
-        <span class="roundBadge">Round ${roundNo} / 13</span>
-        <span class="pileBadge"><span class="n">${s.pile || 0}</span><span class="l">in pile</span></span>
-        <div class="roundPanel">
-          <div class="roundRow"><span>${me != null ? "Your team" : "Team 1"}</span><span class="score">${myRoundScore}${myRoundTarget}</span></div>
-          <div class="roundRow"><span>${me != null ? "Opponents" : "Team 2"}</span><span class="score opp">${oppRoundScore}${oppRoundTarget}</span></div>
-          <div class="roundHint">${escapeHtml(handHint)}</div>
-        </div>
+        <span class="roundBadge">${s.phase === "bidding" ? "Bidding" : s.phase === "pickTrump" ? "Choosing trump" : s.phase === "shuffling" ? "Shuffling" : "Playing"}</span>
+        ${s.pile > 0 ? `<span class="pileBadge"><span class="n">${s.pile}</span><span class="l">in pile</span></span>` : ""}
       </div>
       ${seatsHtml}
       ${playedHtml}
@@ -780,22 +738,35 @@ function wireHandover() {
   if (myBtn && !myBtn.disabled) {
     const flee = () => {
       const stage = myBtn.closest(".skipStage");
-      if (!stage) return;
-      const b = myBtn.getBoundingClientRect(), st = stage.getBoundingClientRect();
-      // current resting offset already applied via transform; compute fresh slot bounds
-      const style = myBtn.style.transform;
-      let curX = 0, curY = 0;
-      const mt = style.match(/translate\(([-\d.]+)px,\s*([-\d.]+)px\)/);
-      if (mt) { curX = parseFloat(mt[1]); curY = parseFloat(mt[2]); }
-      const restLeft = b.left - curX, restTop = b.top - curY;
-      const margin = 8;
-      const minX = st.left + margin - restLeft;
-      const maxX = st.right - margin - b.width - restLeft;
-      const minY = st.top + margin - restTop;
-      const maxY = st.bottom - margin - b.height - restTop;
-      const nx = minX + Math.random() * Math.max(1, maxX - minX);
-      const ny = minY + Math.random() * Math.max(1, maxY - minY);
-      myBtn.style.transform = `translate(${nx}px, ${ny}px)`;
+      const layer = myBtn.closest(".skipContent") || stage;
+      if (!stage || !layer) return;
+
+      // Make the dodging button absolute inside the overlay after the first tap.
+      // This avoids transform math drifting during CSS transitions and guarantees it stays in-frame.
+      const layerRect = layer.getBoundingClientRect();
+      const btnRect = myBtn.getBoundingClientRect();
+      const margin = 10;
+
+      if (!myBtn.dataset.freeMove) {
+        myBtn.style.position = "absolute";
+        myBtn.style.margin = "0";
+        myBtn.style.zIndex = "50";
+        myBtn.style.left = Math.max(margin, Math.min(layerRect.width - btnRect.width - margin, btnRect.left - layerRect.left)) + "px";
+        myBtn.style.top = Math.max(margin, Math.min(layerRect.height - btnRect.height - margin, btnRect.top - layerRect.top)) + "px";
+        myBtn.style.transform = "none";
+        myBtn.dataset.freeMove = "1";
+      }
+
+      const w = myBtn.offsetWidth || btnRect.width || 118;
+      const h = myBtn.offsetHeight || btnRect.height || 40;
+      const maxX = Math.max(margin, layer.clientWidth - w - margin);
+      const maxY = Math.max(margin, layer.clientHeight - h - margin);
+      const nx = margin + Math.random() * Math.max(1, maxX - margin);
+      const ny = margin + Math.random() * Math.max(1, maxY - margin);
+
+      myBtn.style.left = Math.round(nx) + "px";
+      myBtn.style.top = Math.round(ny) + "px";
+      myBtn.style.transform = "none";
     };
     const press = (e) => {
       if (myDodges < REQUIRED_DODGES) { e.preventDefault(); myDodges++; flee(); return; }
