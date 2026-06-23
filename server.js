@@ -282,7 +282,7 @@ function startHand(room) {
 // - The trump setter's partner receives no additional trump cards.
 // Bid 10 restrictions:
 // - The opposing team receives no trump cards in the remaining 8 cards.
-// - The opposing team receives no cards higher than Jack in the remaining 8 cards.
+// - The opposing team receives no cards higher than Queen in the remaining 8 cards.
 function arrangeBackEightForBid(room) {
   if (!room.highBid || ![8, 10].includes(room.highBid.amount)) return;
   if (room.highBid.amount === 8) arrangeBackEightForBid8(room);
@@ -351,7 +351,7 @@ function arrangeBackEightForBid10(room) {
   const end = idx + 8 * order.length; // 32 cards make up the back deal
   const remaining = deck.slice(idx, end);
 
-  const isJackOrLowerNonTrump = (c) => RANK_VALUE[c.rank] <= RANK_VALUE.J && c.suit !== trumpSuit;
+  const isQueenOrLowerNonTrump = (c) => RANK_VALUE[c.rank] <= RANK_VALUE.Q && c.suit !== trumpSuit;
 
   const perSeat = {};
   for (const s of order) perSeat[s] = [];
@@ -368,11 +368,11 @@ function arrangeBackEightForBid10(room) {
     return taken;
   }
 
-  // The two opponents need 16 total low non-trump cards for their back-8 deal.
+  // The two opponents need 16 total queen-or-lower non-trump cards for their back-8 deal.
   // Safety: if the already-dealt first 5s make this impossible, leave the deck untouched rather than corrupting the hand.
-  if (countCards(isJackOrLowerNonTrump) < 16) return;
+  if (countCards(isQueenOrLowerNonTrump) < 16) return;
 
-  for (const seat of oppSeats) perSeat[seat] = takeCards(isJackOrLowerNonTrump, 8);
+  for (const seat of oppSeats) perSeat[seat] = takeCards(isQueenOrLowerNonTrump, 8);
   if (oppSeats.some((s) => perSeat[s].length !== 8)) return;
 
   // Bidder team receives everything else, including high cards and extra trump cards.
