@@ -272,9 +272,9 @@ function startHand(room) {
 
 // For a bid of exactly 8: rearrange the back-8 portion of the deck with these restrictions:
 // - The trump setter and their partner receive no K or A in the remaining 8 cards.
+// - The trump setter receives at most 2 additional trump cards.
 // - The trump setter's partner receives no additional trump cards.
-// - The trump setter may still receive additional trump cards, as long as they are Q or lower.
-// Opponents receive the blocked high cards and partner-blocked trump cards.
+// Opponents receive the blocked high cards and extra trump cards.
 function arrangeBackEightForBid(room) {
   if (!room.highBid || room.highBid.amount !== 8) return;
   const { deck, idx, order } = room.pending;
@@ -287,12 +287,15 @@ function arrangeBackEightForBid(room) {
   const remaining = deck.slice(idx, end);
 
   const isQueenOrLower = (c) => RANK_VALUE[c.rank] <= RANK_VALUE.Q;
-  const allowedForBidder = (c) => isQueenOrLower(c);                    // bidder can still get trump, but no K/A
-  const allowedForPartner = (c) => isQueenOrLower(c) && c.suit !== trumpSuit; // partner gets no K/A and no trump
+  const isLowTrump = (c) => isQueenOrLower(c) && c.suit === trumpSuit;
+  const isLowNonTrump = (c) => isQueenOrLower(c) && c.suit !== trumpSuit;
 
   const perSeat = {};
   for (const s of order) perSeat[s] = [];
 
+  function countCards(predicate) {
+    return remaining.filter(predicate).length;
+  }
   function takeCards(predicate, count) {
     const taken = [];
     for (let i = 0; i < remaining.length && taken.length < count; ) {
@@ -302,14 +305,22 @@ function arrangeBackEightForBid(room) {
     return taken;
   }
 
-  // Give the most restricted hand first, then the bidder's restricted hand.
-  perSeat[partnerSeat] = takeCards(allowedForPartner, 8);
-  perSeat[bidderSeat] = takeCards(allowedForBidder, 8);
+  // Choose the bidder's trump count first. No minimum; maximum is 2.
+  // Prefer using up to 2 legal trump cards because it preserves enough low non-trump cards for both bidding-team players.
+  const bidderTrumpCount = Math.min(2, countCards(isLowTrump));
+  const neededLowNonTrump = 8 + (8 - bidderTrumpCount); // partner's 8 + bidder's remaining cards
 
-  // Safety: constraints should always be satisfiable, but never corrupt the deck if something unusual happens.
+  // Safety: if the post-trump-selection back-deal cannot satisfy the bid-8 constraints, do not corrupt the deck.
+  if (countCards(isLowNonTrump) < neededLowNonTrump) return;
+
+  perSeat[bidderSeat] = takeCards(isLowTrump, bidderTrumpCount);
+  perSeat[partnerSeat] = takeCards(isLowNonTrump, 8);
+  perSeat[bidderSeat].push(...takeCards(isLowNonTrump, 8 - bidderTrumpCount));
+
   if (perSeat[partnerSeat].length !== 8 || perSeat[bidderSeat].length !== 8) return;
+  if (perSeat[bidderSeat].filter((c) => c.suit === trumpSuit).length > 2) return;
 
-  // Opponents receive everything else, including high cards and partner-blocked trump cards.
+  // Opponents receive everything else, including high cards and extra trump cards.
   for (const seat of oppSeats) {
     while (perSeat[seat].length < 8 && remaining.length) perSeat[seat].push(remaining.shift());
   }
