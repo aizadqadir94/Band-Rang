@@ -25,15 +25,16 @@ public/
 - Trump reveals only when a defender cannot follow suit and must cut.
 - On the final (13th) trick, if trump was never revealed, it is revealed automatically so the locked trump card can be played and the hand never stalls.
 - Special rule: when the winning bid is exactly **9**, none of the remaining 8 cards dealt to the bidding team will be of the chosen trump suit — every leftover trump goes to the two opponents.
-- If the bidding team cannot follow suit before trump is revealed, their card is played face down and cannot win the trick.
+- If the **trump setter** cannot follow suit before trump is revealed, their vaddrang/waste card is played face down and cannot win the trick. The setter's partner plays face up.
 - After trump is revealed, winning two live-trump tricks in a row scoops the full pile.
-- The hand can end early once the bid is mathematically impossible.
+- The hand ends immediately when the bidding team has made the bid, or when defenders have taken enough tricks to make the bid impossible. For example, bid 9 ends when the bidder team reaches 9 or defenders reach 5.
 - Net scoring: bidding team gets `+bid` if they make it, or `-2 × bid` if they fail.
 - Match ends when the net margin reaches 52.
 
 ## Visual features
 
 - A dramatic flip animation reveals the actual trump card (rank and suit) when trump goes live.
+- The table shows the current round, tricks in pile, your team's hand tricks, opponent hand tricks, and the bid target.
 - The winning card of each trick is briefly highlighted.
 - A gold "SCOOP! +N" burst appears at the winner's seat when a pile is scooped.
 - "Match point": when the net margin is within 8 of 52, the table border pulses red with a badge.
@@ -72,7 +73,7 @@ Send that URL to your friends.
 
 ## Free Render tier note
 
-The free Render tier may sleep after inactivity. The first load after a quiet period can take around a minute while the server wakes. After that, the game runs normally.
+The app sends WebSocket heartbeats while a player has the game open, and `/healthz` is available for uptime checks. On Render Free, the service can still spin down if there is no inbound traffic for a while or if every browser tab is closed/backgrounded. Use a paid always-on instance or an external uptime monitor if the game must stay available without any open player browser.
 
 ## Local test, optional
 

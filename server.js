@@ -23,6 +23,10 @@ const MIME = {
 };
 const server = http.createServer((req, res) => {
   let urlPath = decodeURIComponent(req.url.split("?")[0]);
+  if (urlPath === "/healthz" || urlPath === "/health") {
+    res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+    return res.end(JSON.stringify({ ok: true, rooms: rooms.size, uptime: Math.round(process.uptime()) }));
+  }
   if (urlPath === "/") urlPath = "/index.html";
   const publicRoot = path.join(__dirname, "public");
   const filePath = path.join(publicRoot, urlPath);
@@ -505,7 +509,7 @@ wss.on("connection", (ws) => {
     setTimeout(() => {
       const r = rooms.get(ws.roomCode);
       if (r && connectedCount(r) === 0) rooms.delete(ws.roomCode);
-    }, 120000);
+    }, 30 * 60 * 1000);
   });
 });
 
@@ -638,13 +642,21 @@ function handle(ws, msg) {
       const card = hand.find((c) => c.id === msg.cardId);
       if (!card) return;
       const lead = room.trick.length ? room.trick[0].card.suit : null;
-      const hasLead = lead ? hand.some((c) => c.suit === lead) : true;
+
+      // While trump is hidden, the setter's exact hidden trump card is locked and should
+      // NOT count as a follow-suit card. If it is the setter's only card in the led suit,
+      // the setter is void and their vaddrang/waste card is played face down.
+      const handForFollowCheck = (!room.trumpActive && ws.seat === room.trumpHolder && room.trumpCardId)
+        ? hand.filter((c) => c.id !== room.trumpCardId)
+        : hand;
+      const hasLead = lead ? handForFollowCheck.some((c) => c.suit === lead) : true;
       const isDefender = room.trumpHolder != null && TEAM_OF(ws.seat) !== TEAM_OF(room.trumpHolder);
-      const isBidderTeam = room.trumpHolder != null && TEAM_OF(ws.seat) === TEAM_OF(room.trumpHolder);
+      const isTrumpSetter = room.trumpHolder != null && ws.seat === room.trumpHolder;
       let faceDown = false;
 
-      // Bidding team void in lead suit before reveal: play face down to preserve hidden trump.
-      if (lead && !hasLead && !room.trumpActive && isBidderTeam) {
+      // Only the trump setter plays vaddrang/waste face down before trump reveal.
+      // The setter's partner plays face up.
+      if (lead && !hasLead && !room.trumpActive && isTrumpSetter) {
         faceDown = true;
       }
 
