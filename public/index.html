@@ -518,12 +518,11 @@ function renderTable() {
     let meta = "";
     if (s.phase === "bidding" && s.bids[seat] != null) meta = s.bids[seat] === "pass" ? "pass" : "bid " + s.bids[seat];
     else if (s.trumpHolder === seat && s.highBid) meta = "bid " + s.highBid.amount;
-    const backs = Array.from({length: Math.min(cnt, 8)}).map(() => `<span class="miniBack"></span>`).join("");
     return `<div class="seat ${pos} ${active ? "active" : ""} ${p && !p.connected ? "discon" : ""}">
       <div class="avatar">${p ? escapeHtml(p.name[0] || "?").toUpperCase() : "?"}</div>
       <div class="nm">${p ? escapeHtml(p.name) : "—"}</div>
       <div class="meta">${meta}</div>
-      <div class="down">${backs}<span class="cnt">${cnt}</span></div>
+      <div class="down"><span class="cnt">${cnt}</span></div>
     </div>`;
   }).join("");
 
@@ -583,9 +582,10 @@ function renderTable() {
   const usScore = me != null ? s.scores[myTeam] : s.scores[0];
   const themScore = me != null ? s.scores[oppTeam] : s.scores[1];
 
-  // current hand / round tracking
-  const totalTricksWon = (s.tricksWon || [0,0]).reduce((a,b)=>a+b,0);
-  const roundNo = s.phase === "handover" ? Math.max(1, totalTricksWon) : Math.min(13, totalTricksWon + 1);
+  // current hand / round tracking. tricksWon is picked/captured pile score;
+  // tricksPlayed is the actual number of completed tricks.
+  const tricksPlayed = s.tricksPlayed ?? 0;
+  const roundNo = s.phase === "handover" ? Math.max(1, tricksPlayed) : Math.min(13, tricksPlayed + 1);
   const bidTeam = s.highBid ? TEAM_OF(s.highBid.seat) : null;
   const bidAmount = s.highBid ? s.highBid.amount : null;
   const myRoundScore = me != null ? (s.tricksWon?.[myTeam] ?? 0) : (s.tricksWon?.[0] ?? 0);
