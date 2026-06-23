@@ -275,8 +275,21 @@ function startHand(room) {
 // - The trump setter receives at most 1 additional trump card.
 // - The trump setter's partner receives no additional trump cards.
 // Opponents receive the blocked high cards and extra trump cards.
+// For a bid of exactly 8 or 10: rearrange the back-8 portion of the deck.
+// Bid 8 restrictions:
+// - The trump setter and their partner receive no K or A in the remaining 8 cards.
+// - The trump setter receives at most 1 additional trump card.
+// - The trump setter's partner receives no additional trump cards.
+// Bid 10 restrictions:
+// - The opposing team receives no trump cards in the remaining 8 cards.
+// - The opposing team receives no cards higher than Jack in the remaining 8 cards.
 function arrangeBackEightForBid(room) {
-  if (!room.highBid || room.highBid.amount !== 8) return;
+  if (!room.highBid || ![8, 10].includes(room.highBid.amount)) return;
+  if (room.highBid.amount === 8) arrangeBackEightForBid8(room);
+  else if (room.highBid.amount === 10) arrangeBackEightForBid10(room);
+}
+
+function arrangeBackEightForBid8(room) {
   const { deck, idx, order } = room.pending;
   const trumpSuit = room.trump;
   const bidderSeat = room.trumpHolder;
@@ -305,8 +318,7 @@ function arrangeBackEightForBid(room) {
     return taken;
   }
 
-  // Choose the bidder's trump count first. No minimum; maximum is 1.
-  // Prefer using up to 1 legal trump card because it preserves enough low non-trump cards for both bidding-team players.
+  // No minimum; maximum is 1 additional trump card for the bidder.
   const bidderTrumpCount = Math.min(1, countCards(isLowTrump));
   const neededLowNonTrump = 8 + (8 - bidderTrumpCount); // partner's 8 + bidder's remaining cards
 
@@ -326,6 +338,54 @@ function arrangeBackEightForBid(room) {
   }
   if (oppSeats.some((s) => perSeat[s].length !== 8) || remaining.length) return;
 
+  rebuildBackDealSlice(room, perSeat);
+}
+
+function arrangeBackEightForBid10(room) {
+  const { deck, idx, order } = room.pending;
+  const trumpSuit = room.trump;
+  const bidderSeat = room.trumpHolder;
+  const bidTeam = TEAM_OF(bidderSeat);
+  const bidderTeamSeats = order.filter((s) => TEAM_OF(s) === bidTeam);
+  const oppSeats = order.filter((s) => TEAM_OF(s) !== bidTeam);
+  const end = idx + 8 * order.length; // 32 cards make up the back deal
+  const remaining = deck.slice(idx, end);
+
+  const isJackOrLowerNonTrump = (c) => RANK_VALUE[c.rank] <= RANK_VALUE.J && c.suit !== trumpSuit;
+
+  const perSeat = {};
+  for (const s of order) perSeat[s] = [];
+
+  function countCards(predicate) {
+    return remaining.filter(predicate).length;
+  }
+  function takeCards(predicate, count) {
+    const taken = [];
+    for (let i = 0; i < remaining.length && taken.length < count; ) {
+      if (predicate(remaining[i])) taken.push(remaining.splice(i, 1)[0]);
+      else i++;
+    }
+    return taken;
+  }
+
+  // The two opponents need 16 total low non-trump cards for their back-8 deal.
+  // Safety: if the already-dealt first 5s make this impossible, leave the deck untouched rather than corrupting the hand.
+  if (countCards(isJackOrLowerNonTrump) < 16) return;
+
+  for (const seat of oppSeats) perSeat[seat] = takeCards(isJackOrLowerNonTrump, 8);
+  if (oppSeats.some((s) => perSeat[s].length !== 8)) return;
+
+  // Bidder team receives everything else, including high cards and extra trump cards.
+  for (const seat of bidderTeamSeats) {
+    while (perSeat[seat].length < 8 && remaining.length) perSeat[seat].push(remaining.shift());
+  }
+  if (bidderTeamSeats.some((s) => perSeat[s].length !== 8) || remaining.length) return;
+
+  rebuildBackDealSlice(room, perSeat);
+}
+
+function rebuildBackDealSlice(room, perSeat) {
+  const { deck, idx, order } = room.pending;
   // Rebuild the deck slice in the exact order dealRemaining() will deal it: 4-card packets, two rounds.
   const out = [];
   for (let round = 0; round < 2; round++) {
@@ -359,7 +419,7 @@ function applyTrumpPick(room, cardId) {
   room.trump = card.suit;
   room.trumpCard = card;
   room.trumpCardId = card.id;
-  arrangeBackEightForBid(room);   // on bid 8, apply the special back-8 deal restrictions
+  arrangeBackEightForBid(room);   // on bid 8 or 10, apply special back-8 deal restrictions
   dealRemaining(room);            // now everyone gets their full 13
   room.phase = "playing";
   room.turn = room.trumpHolder;   // bid winner leads

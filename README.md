@@ -23,7 +23,9 @@ public/
 - The hidden trump card is locked in the trump setter's hand until trump is revealed.
 - Trump reveals when a defender cannot follow suit and must cut.
 - If trump is still hidden at the final trick, it auto-reveals so the locked trump can be played.
-- Special deal rule applies only to bid 8: in the remaining 8-card deal, the trump setter and partner receive no K or A; the partner receives no additional trump cards; the trump setter may receive 0 or 1 additional trump card, but never more than 1.
+- Special deal rules apply only to bid 8 and bid 10.
+  - Bid 8: the trump setter receives no K/A and at most 1 additional trump card in the remaining 8-card deal; the setter's partner receives no K/A and no additional trump cards.
+  - Bid 10: the opposing team receives no trump cards and no cards higher than Jack in the remaining 8-card deal.
 - Before trump reveal, no team can pick score. Tricks only build the pile.
 - Before trump reveal, only the trump setter's vaddrang/waste card is face down. The setter's partner plays waste face up.
 - After trump reveal, the same individual player must win two live tricks in a row to pick the full pile.
