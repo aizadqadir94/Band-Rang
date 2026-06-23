@@ -58,3 +58,7 @@ Open four browser tabs at:
 ```text
 http://localhost:3000
 ```
+
+## UI fixes
+
+- The player hand is compressed responsively on mobile so all 13 cards stay visible.
