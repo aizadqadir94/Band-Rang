@@ -530,8 +530,10 @@ function renderTable() {
   if (!pickingTrumpInCenter && !s.isSpectator && s.hand && s.hand.length) {
     handHtml = s.hand.map(c => {
       const legal = s.phase === "playing" && s.isMyTurn && (s.legal || []).includes(c.id);
+      const lockedTrump = s.phase === "playing" && !s.trumpActive && s.you === s.trumpHolder && s.trumpCardId === c.id;
       const usable = legal;
-      const cls = "card " + (usable ? "playable" : (s.phase === "playing" && s.isMyTurn ? "dimmed" : ""));
+      const shouldDim = lockedTrump || (s.phase === "playing" && s.isMyTurn && !usable);
+      const cls = "card " + (usable ? "playable" : (shouldDim ? "dimmed" : ""));
       return `<button class="cardbtn" data-id="${c.id}" ${usable ? "" : "disabled"} style="background:none;border:none;padding:0;">
         ${cardFaceHtml(c, cls)}
       </button>`;
