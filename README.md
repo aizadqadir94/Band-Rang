@@ -1,8 +1,9 @@
-# Band Rang — online multiplayer
+# Band Rang — online multiplayer for 4 friends
 
-Online 4-player Band Rang with hidden trump, bidding, pile pickup scoring, WebSockets, reconnect support, and mobile UI.
+Real online Band Rang: hidden-trump Court Piece with bidding, room codes, and four human players.
+The Node server owns the game rules and sends each player only their own hand.
 
-## Files
+## What is included
 
 ```text
 server.js
@@ -11,54 +12,73 @@ package-lock.json
 README.md
 public/
   index.html
+  app.js
 ```
 
-## Current rule logic
+## Rules built in
 
 - Four players, two teams: seats 1 & 3 vs seats 2 & 4.
 - Everyone receives 5 cards first.
-- Bidding goes from 7 to 13. One bidding round only.
-- Highest bidder chooses one exact card from the first 5 as hidden trump.
-- After trump is selected, everyone receives the remaining 8 cards.
-- The hidden trump card is locked in the trump setter's hand until trump is revealed.
-- Trump reveals when a defender cannot follow suit and must cut.
-- If trump is still hidden at the final trick, it auto-reveals so the locked trump can be played.
-- Special deal rules apply only to bid 8 and bid 10.
-  - Bid 8: the trump setter receives no K/A and at most 1 additional trump card in the remaining 8-card deal; the setter's partner receives no K/A and no additional trump cards.
-  - Bid 10: the opposing team receives no trump cards and no cards higher than Queen in the remaining 8-card deal.
-- Before trump reveal, no team can pick score. Tricks only build the pile.
-- Before trump reveal, only the trump setter's vaddrang/waste card is face down. The setter's partner plays waste face up.
-- After trump reveal, the same individual player must win two live tricks in a row to pick the full pile.
-- Picked pile points go to that player's team.
-- Hand ends when the bidding team picks the bid amount, or defenders pick enough to make the bid impossible.
-- Net scoring: bidding team gets `+bid` if made, or `-2 × bid` if failed.
-- Top-right match score shows only positive net margin from the viewer's perspective.
-- Match ends when net margin reaches 52.
+- Bidding goes from 7 to 13. Every bid must beat the current high bid.
+- Highest bidder chooses one specific card from their first 5 cards as the hidden trump card.
+- After trump is locked, everyone receives the remaining 8 cards.
+- The hidden trump card stays locked in the bidder's hand until trump is revealed.
+- Trump reveals only when a defender cannot follow suit and must cut.
+- If the bidding team cannot follow suit before trump is revealed, their card is played face down and cannot win the trick.
+- After trump is revealed, winning two live-trump tricks in a row scoops the full pile.
+- The hand can end early once the bid is mathematically impossible.
+- Net scoring: bidding team gets `+bid` if they make it, or `-2 × bid` if they fail.
+- Match ends when the net margin reaches 52.
+
+## Visual features
+
+- A dramatic flip animation reveals the actual trump card (rank and suit) when trump goes live.
+- The winning card of each trick is briefly highlighted.
+- At the end of every hand, an image overlay appears and the two players on the **losing** team must each tap their "TKMKBSDA" button 13 times — and their buttons run away on each tap. Everyone in the room watches the losers struggle, and "Deal next hand" stays locked until both have finished.
 
 ## Deploy on Render
 
-1. Upload the files to GitHub with `index.html` inside `public/`.
-2. Render settings:
+1. Create a GitHub repository, for example `bandrang`.
+2. Upload these files exactly as shown above. Both `index.html` and `app.js` must be inside the `public` folder.
+3. Go to Render → **New** → **Web Service**.
+4. Connect your GitHub repository.
+5. Use these settings:
 
 | Setting | Value |
 |---|---|
 | Runtime | Node |
 | Build Command | `npm install` |
 | Start Command | `npm start` |
+| Instance Type | Free is fine |
 
-## Local test
+Render gives you a URL like:
+
+```text
+https://bandrang-xxxx.onrender.com
+```
+
+Send that URL to your friends.
+
+## Play
+
+1. One player opens the link and taps **Create a room**.
+2. Share the 4-character room code.
+3. The other three players open the same link, enter their names and the code, then tap **Join**.
+4. When all 4 seats are filled, anyone can tap **Start the game**.
+
+## Free Render tier note
+
+The free Render tier may sleep after inactivity. The first load after a quiet period can take around a minute while the server wakes. After that, the game runs normally.
+
+## Local test, optional
 
 ```bash
 npm install
 npm start
 ```
 
-Open four browser tabs at:
+Then open four browser tabs at:
 
 ```text
 http://localhost:3000
 ```
-
-## UI fixes
-
-- The player hand is compressed responsively on mobile so all 13 cards stay visible.

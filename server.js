@@ -68,10 +68,10 @@ function legalMovesBase(hand, trick) {
   const inSuit = hand.filter((c) => c.suit === lead);
   return inSuit.length ? inSuit : hand;
 }
-function trickWinner(trick, trump, trumpActive) {
+function bestPlayInTrick(trick, trump, trumpActive) {
   // Face-down cards can never win the trick.
   const eligible = trick.filter((p) => !p.faceDown);
-  if (eligible.length === 0) return trick[0].seat;
+  if (eligible.length === 0) return trick[0];
   let best = eligible[0];
   for (const play of eligible) {
     const c = play.card, bc = best.card;
@@ -83,7 +83,10 @@ function trickWinner(trick, trump, trumpActive) {
       if (c.suit === bc.suit && cardRankValue(play) > cardRankValue(best)) best = play;
     }
   }
-  return best.seat;
+  return best;
+}
+function trickWinner(trick, trump, trumpActive) {
+  return bestPlayInTrick(trick, trump, trumpActive).seat;
 }
 
 // ---------------------------------------------------------------- rooms
@@ -122,7 +125,7 @@ function newRoom(code) {
     pile: 0,
     lastWinnerSeat: null,
     liveTrickResolved: false,
-    lastPlayedWasAce: [false, false, false, false],
+    aceWonLastTrick: [false, false, false, false],
     tricksWon: [0, 0],
     scores: [0, 0],                    // net score: +bid if made, -2×bid if failed
     khoti: null,
@@ -269,7 +272,7 @@ function startHand(room) {
   room.pile = 0;
   room.lastWinnerSeat = null;
   room.liveTrickResolved = false;
-  room.lastPlayedWasAce = [false, false, false, false];
+  room.aceWonLastTrick = [false, false, false, false];
   room.tricksWon = [0, 0];
   room.khoti = null;
   room.loserTeam = null;
@@ -279,11 +282,127 @@ function startHand(room) {
   broadcast(room);
 }
 
+function isHighCard(card) {
+  return card.rank === "K" || card.rank === "A";
+}
+function shuffleInPlace(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
 function dealRemaining(room) {
   const { deck, idx, order } = room.pending;
-  let i = idx;
-  for (let round = 0; round < 2; round++)
-    for (const seat of order) for (let k = 0; k < 4; k++) room.hands[seat].push(deck[i++]);
+  const remaining = deck.slice(idx);
+  const bidAmount = room.highBid?.amount;
+
+  // Special deal rules:
+  // - Bid 10: reward bidding team. The opposing team should not receive K/A cards
+  //   in the remaining 8-card deal, and should not receive more trump cards than the bidding team.
+  // - Bid 8: opposite penalty. The bidding team gets that restriction instead.
+  const useSpecial = bidAmount === 8 || bidAmount === 10;
+  if (!useSpecial) {
+    let i = idx;
+    for (let round = 0; round < 2; round++)
+      for (const seat of order) for (let k = 0; k < 4; k++) room.hands[seat].push(deck[i++]);
+    room.hands = room.hands.map(sortHand);
+    return;
+  }
+
+  const bidTeam = TEAM_OF(room.highBid.seat);
+  const restrictedTeam = bidAmount === 10 ? 1 - bidTeam : bidTeam;
+  const teamSeats = {
+    0: [0, 2],
+    1: [1, 3],
+  };
+
+  const restrictedPool = [];
+  const unrestrictedPool = [];
+  const deferredEligibleTrumps = [];
+  const overflow = [];
+  const totalRemainingTrumps = remaining.filter((c) => c.suit === room.trump).length;
+  const maxRestrictedTrumps = Math.floor(totalRemainingTrumps / 2);
+  let restrictedTrumpCount = 0;
+
+  for (const card of remaining) {
+    const eligibleForRestricted = !isHighCard(card);
+    const isTrump = card.suit === room.trump;
+    if (!eligibleForRestricted) {
+      overflow.push(card);
+      continue;
+    }
+    if (isTrump) {
+      if (restrictedTrumpCount < maxRestrictedTrumps) {
+        deferredEligibleTrumps.push(card);
+      } else {
+        overflow.push(card);
+      }
+    } else {
+      restrictedPool.push(card);
+    }
+  }
+
+  // Use random eligible trump cards up to the cap only as needed to fill the 16-card restricted pool.
+  shuffleInPlace(deferredEligibleTrumps);
+  while (restrictedPool.length < 16 && deferredEligibleTrumps.length) {
+    restrictedPool.push(deferredEligibleTrumps.pop());
+    restrictedTrumpCount += 1;
+  }
+  // If we still have room, allow more eligible trumps even above the cap as a very rare fallback.
+  while (restrictedPool.length < 16) {
+    const next = remaining.find((c) => !restrictedPool.includes(c) && !overflow.includes(c));
+    if (!next) break;
+    restrictedPool.push(next);
+    if (next.suit === room.trump) restrictedTrumpCount += 1;
+  }
+
+  const restrictedSet = new Set(restrictedPool.map((c) => c.id + ':' + c.suit + ':' + c.rank));
+  // Build unrestricted pool from everything not assigned to restricted side.
+  const usedCounts = new Map();
+  for (const c of restrictedPool) {
+    const key = c.id + ':' + c.suit + ':' + c.rank;
+    usedCounts.set(key, (usedCounts.get(key) || 0) + 1);
+  }
+  for (const c of remaining) {
+    const key = c.id + ':' + c.suit + ':' + c.rank;
+    const used = usedCounts.get(key) || 0;
+    if (used > 0) {
+      usedCounts.set(key, used - 1);
+    } else {
+      unrestrictedPool.push(c);
+    }
+  }
+
+  // Sanity fallback: if some edge case left the restricted side short, swap in extra legal cards.
+  if (restrictedPool.length < 16) {
+    for (let i = unrestrictedPool.length - 1; i >= 0 && restrictedPool.length < 16; i--) {
+      const c = unrestrictedPool[i];
+      if (!isHighCard(c)) {
+        if (c.suit !== room.trump || restrictedTrumpCount < maxRestrictedTrumps) {
+          restrictedPool.push(c);
+          if (c.suit === room.trump) restrictedTrumpCount += 1;
+          unrestrictedPool.splice(i, 1);
+        }
+      }
+    }
+  }
+
+  shuffleInPlace(restrictedPool);
+  shuffleInPlace(unrestrictedPool);
+
+  const teamPools = {
+    [restrictedTeam]: restrictedPool.slice(),
+    [1 - restrictedTeam]: unrestrictedPool.slice(),
+  };
+  for (let round = 0; round < 8; round++) {
+    for (const seat of order) {
+      const pool = teamPools[TEAM_OF(seat)];
+      const card = pool.shift();
+      if (!card) continue;
+      room.hands[seat].push(card);
+    }
+  }
   room.hands = room.hands.map(sortHand);
 }
 
@@ -322,7 +441,9 @@ function revealTrump(room, bySeat, mustCut = false) {
 function resolveTrick(room) {
   // Called when 4 cards are down. Pause so clients can see the full trick, then resolve.
   setTimeout(() => {
-    const winner = trickWinner(room.trick, room.trump, room.trumpActive);
+    const winningPlay = bestPlayInTrick(room.trick, room.trump, room.trumpActive);
+    const winner = winningPlay.seat;
+    const winnerWonWithAce = winningPlay.card?.rank === "A" && !winningPlay.zeroAce && !winningPlay.faceDown;
     const newPile = room.pile + 1;
     const scoopEligible = room.trumpActive && room.liveTrickResolved;
     const scoopTeam = scoopEligible && room.lastWinnerSeat !== null && winner === room.lastWinnerSeat
@@ -346,6 +467,11 @@ function resolveTrick(room) {
     room.lastWinnerSeat = scoopTeam !== null ? null : winner;
     room.lastTrick = { trick: room.trick, winner };
     room.trick = [];
+    // Back-to-back Ace rule:
+    // An Ace counts as 0 only if this same player won the previous trick with a normal Ace.
+    // Merely playing an Ace and losing the trick does not trigger the penalty.
+    room.aceWonLastTrick = [false, false, false, false];
+    if (winnerWonWithAce) room.aceWonLastTrick[winner] = true;
     if (room.trumpActive) room.liveTrickResolved = true;
 
     if (handDone) {
@@ -419,7 +545,7 @@ function resetToLobby(room) {
   room.pile = 0;
   room.lastWinnerSeat = null;
   room.liveTrickResolved = false;
-  room.lastPlayedWasAce = [false, false, false, false];
+  room.aceWonLastTrick = [false, false, false, false];
   room.tricksWon = [0, 0];
   room.scores = [0, 0];
   room.khoti = null;
@@ -621,10 +747,11 @@ function handle(ws, msg) {
         revealTrump(room, ws.seat, false);
       }
 
-      // Back-to-back Ace rule: if the same player plays an Ace on two consecutive turns,
-      // the second Ace has value 0 for trick-winning comparisons.
-      const zeroAce = card.rank === "A" && room.lastPlayedWasAce[ws.seat];
-      room.lastPlayedWasAce[ws.seat] = card.rank === "A";
+      // Back-to-back Ace rule:
+      // The Ace counts as 0 only when this player won the immediately previous trick with an Ace
+      // and now tries to use another Ace on the next trick.
+      // If the earlier Ace lost to trump or another card, this is false.
+      const zeroAce = card.rank === "A" && room.aceWonLastTrick[ws.seat];
 
       // apply the play
       room.hands[ws.seat] = hand.filter((c) => c.id !== card.id);
