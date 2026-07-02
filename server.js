@@ -292,118 +292,136 @@ function shuffleInPlace(arr) {
   }
   return arr;
 }
-function dealRemaining(room) {
-  const { deck, idx, order } = room.pending;
-  const remaining = deck.slice(idx);
-  const bidAmount = room.highBid?.amount;
-
-  // Special deal rules:
-  // - Bid 10: reward bidding team. The opposing team should not receive K/A cards
-  //   in the remaining 8-card deal, and should not receive more trump cards than the bidding team.
-  // - Bid 8: opposite penalty. The bidding team gets that restriction instead.
-  const useSpecial = bidAmount === 8 || bidAmount === 10;
-  if (!useSpecial) {
-    let i = idx;
-    for (let round = 0; round < 2; round++)
-      for (const seat of order) for (let k = 0; k < 4; k++) room.hands[seat].push(deck[i++]);
-    room.hands = room.hands.map(sortHand);
-    return;
-  }
-
-  const bidTeam = TEAM_OF(room.highBid.seat);
-  const restrictedTeam = bidAmount === 10 ? 1 - bidTeam : bidTeam;
-  const teamSeats = {
-    0: [0, 2],
-    1: [1, 3],
-  };
-
-  const restrictedPool = [];
-  const unrestrictedPool = [];
-  const deferredEligibleTrumps = [];
-  const overflow = [];
-  const totalRemainingTrumps = remaining.filter((c) => c.suit === room.trump).length;
-  const maxRestrictedTrumps = Math.floor(totalRemainingTrumps / 2);
-  let restrictedTrumpCount = 0;
-
-  for (const card of remaining) {
-    const eligibleForRestricted = !isHighCard(card);
-    const isTrump = card.suit === room.trump;
-    if (!eligibleForRestricted) {
-      overflow.push(card);
-      continue;
+function takeFrom(pool, predicate) {
+  const idx = pool.findIndex(predicate);
+  if (idx === -1) return null;
+  return pool.splice(idx, 1)[0];
+}
+function fillSeatFromPools(assigned, seat, pools) {
+  while (assigned[seat].length < 8) {
+    let card = null;
+    for (const pred of pools) {
+      card = takeFrom(pred.pool, pred.test);
+      if (card) break;
     }
-    if (isTrump) {
-      if (restrictedTrumpCount < maxRestrictedTrumps) {
-        deferredEligibleTrumps.push(card);
-      } else {
-        overflow.push(card);
-      }
-    } else {
-      restrictedPool.push(card);
-    }
+    if (!card) return false;
+    assigned[seat].push(card);
   }
-
-  // Use random eligible trump cards up to the cap only as needed to fill the 16-card restricted pool.
-  shuffleInPlace(deferredEligibleTrumps);
-  while (restrictedPool.length < 16 && deferredEligibleTrumps.length) {
-    restrictedPool.push(deferredEligibleTrumps.pop());
-    restrictedTrumpCount += 1;
-  }
-  // If we still have room, allow more eligible trumps even above the cap as a very rare fallback.
-  while (restrictedPool.length < 16) {
-    const next = remaining.find((c) => !restrictedPool.includes(c) && !overflow.includes(c));
-    if (!next) break;
-    restrictedPool.push(next);
-    if (next.suit === room.trump) restrictedTrumpCount += 1;
-  }
-
-  const restrictedSet = new Set(restrictedPool.map((c) => c.id + ':' + c.suit + ':' + c.rank));
-  // Build unrestricted pool from everything not assigned to restricted side.
-  const usedCounts = new Map();
-  for (const c of restrictedPool) {
-    const key = c.id + ':' + c.suit + ':' + c.rank;
-    usedCounts.set(key, (usedCounts.get(key) || 0) + 1);
-  }
-  for (const c of remaining) {
-    const key = c.id + ':' + c.suit + ':' + c.rank;
-    const used = usedCounts.get(key) || 0;
-    if (used > 0) {
-      usedCounts.set(key, used - 1);
-    } else {
-      unrestrictedPool.push(c);
-    }
-  }
-
-  // Sanity fallback: if some edge case left the restricted side short, swap in extra legal cards.
-  if (restrictedPool.length < 16) {
-    for (let i = unrestrictedPool.length - 1; i >= 0 && restrictedPool.length < 16; i--) {
-      const c = unrestrictedPool[i];
-      if (!isHighCard(c)) {
-        if (c.suit !== room.trump || restrictedTrumpCount < maxRestrictedTrumps) {
-          restrictedPool.push(c);
-          if (c.suit === room.trump) restrictedTrumpCount += 1;
-          unrestrictedPool.splice(i, 1);
-        }
-      }
-    }
-  }
-
-  shuffleInPlace(restrictedPool);
-  shuffleInPlace(unrestrictedPool);
-
-  const teamPools = {
-    [restrictedTeam]: restrictedPool.slice(),
-    [1 - restrictedTeam]: unrestrictedPool.slice(),
-  };
+  return true;
+}
+function dealAssigned(room, assigned) {
   for (let round = 0; round < 8; round++) {
-    for (const seat of order) {
-      const pool = teamPools[TEAM_OF(seat)];
-      const card = pool.shift();
-      if (!card) continue;
-      room.hands[seat].push(card);
+    for (const seat of room.pending.order) {
+      const card = assigned[seat][round];
+      if (card) room.hands[seat].push(card);
     }
   }
   room.hands = room.hands.map(sortHand);
+}
+function dealRemainingNormal(room) {
+  const { deck, idx, order } = room.pending;
+  let i = idx;
+  for (let round = 0; round < 2; round++)
+    for (const seat of order) for (let k = 0; k < 4; k++) room.hands[seat].push(deck[i++]);
+  room.hands = room.hands.map(sortHand);
+}
+function dealBid10Remaining(room, remaining) {
+  // Bid 10 reward: restrict the opposing team first, but never leave anyone short.
+  const bidTeam = TEAM_OF(room.highBid.seat);
+  const restrictedTeam = 1 - bidTeam;
+  const restrictedSeats = [0, 1, 2, 3].filter((s) => TEAM_OF(s) === restrictedTeam);
+  const unrestrictedSeats = [0, 1, 2, 3].filter((s) => TEAM_OF(s) !== restrictedTeam);
+  const assigned = { 0: [], 1: [], 2: [], 3: [] };
+  const pool = shuffleInPlace(remaining.slice());
+
+  const totalRemainingTrumps = remaining.filter((c) => c.suit === room.trump).length;
+  const maxRestrictedTrumps = Math.floor(totalRemainingTrumps / 2);
+  let restrictedTrumps = 0;
+
+  for (const seat of restrictedSeats) {
+    while (assigned[seat].length < 8) {
+      let card = takeFrom(pool, (c) => !isHighCard(c) && c.suit !== room.trump);
+      if (!card && restrictedTrumps < maxRestrictedTrumps) {
+        card = takeFrom(pool, (c) => !isHighCard(c) && c.suit === room.trump);
+        if (card) restrictedTrumps += 1;
+      }
+      // Fallbacks should be rare, but full 13-card hands are more important than a broken deal.
+      if (!card) card = takeFrom(pool, (c) => !isHighCard(c));
+      if (!card) card = pool.shift();
+      if (!card) break;
+      assigned[seat].push(card);
+    }
+  }
+
+  for (const seat of unrestrictedSeats) {
+    while (assigned[seat].length < 8 && pool.length) assigned[seat].push(pool.shift());
+  }
+  for (const seat of [0, 1, 2, 3]) {
+    while (assigned[seat].length < 8 && pool.length) assigned[seat].push(pool.shift());
+  }
+  dealAssigned(room, assigned);
+}
+function dealBid8Remaining(room, remaining) {
+  // Bid 8 penalty, amended:
+  // - The bidding team should not receive K/A in the remaining deal.
+  // - The trump setter may receive at most ONE extra trump card after the hidden trump.
+  // - The trump setter's partner should receive NO extra trump cards.
+  // If the deck state makes the exact restriction impossible, the server falls back only enough
+  // to complete all hands, so nobody ever receives fewer than 13 cards.
+  const bidder = room.highBid.seat;
+  const bidTeam = TEAM_OF(bidder);
+  const partner = [0, 1, 2, 3].find((s) => s !== bidder && TEAM_OF(s) === bidTeam);
+  const opponents = [0, 1, 2, 3].filter((s) => TEAM_OF(s) !== bidTeam);
+  const assigned = { 0: [], 1: [], 2: [], 3: [] };
+  const pool = shuffleInPlace(remaining.slice());
+
+  // Bidder may get exactly one extra trump, if an eligible one exists.
+  const bidderTrump = takeFrom(pool, (c) => !isHighCard(c) && c.suit === room.trump);
+  if (bidderTrump) assigned[bidder].push(bidderTrump);
+
+  // Strict preferred fill: no K/A, no trump for partner, no extra trump for bidder.
+  fillSeatFromPools(assigned, bidder, [
+    { pool, test: (c) => !isHighCard(c) && c.suit !== room.trump },
+  ]);
+  fillSeatFromPools(assigned, partner, [
+    { pool, test: (c) => !isHighCard(c) && c.suit !== room.trump },
+  ]);
+
+  // Fallback fill for the bidding team if the strict pool is too small.
+  // This prevents the 10-card/11-card bug while preserving the rule whenever possible.
+  fillSeatFromPools(assigned, bidder, [
+    { pool, test: (c) => !isHighCard(c) },
+    { pool, test: () => true },
+  ]);
+  fillSeatFromPools(assigned, partner, [
+    { pool, test: (c) => !isHighCard(c) && c.suit !== room.trump },
+    { pool, test: (c) => !isHighCard(c) },
+    { pool, test: () => true },
+  ]);
+
+  // Opponents get the rest.
+  for (const seat of opponents) {
+    while (assigned[seat].length < 8 && pool.length) assigned[seat].push(pool.shift());
+  }
+  for (const seat of [0, 1, 2, 3]) {
+    while (assigned[seat].length < 8 && pool.length) assigned[seat].push(pool.shift());
+  }
+  dealAssigned(room, assigned);
+}
+function dealRemaining(room) {
+  const { deck, idx } = room.pending;
+  const remaining = deck.slice(idx);
+  const bidAmount = room.highBid?.amount;
+
+  if (bidAmount === 10) {
+    dealBid10Remaining(room, remaining);
+    return;
+  }
+  if (bidAmount === 8) {
+    dealBid8Remaining(room, remaining);
+    return;
+  }
+  dealRemainingNormal(room);
 }
 
 function finishBidding(room, winnerSeat, amount) {
