@@ -169,7 +169,8 @@ function tableView(wrap, flashReveal){
   const handHtml=state.hand.map((c,i)=>{
     const locked=!state.trumpActive && state.trumpCardId===c.id;
     if(locked){
-      return `<button class="card locked" style="margin-left:${i===0?0:-22}px;z-index:${i}" disabled title="Your hidden trump — locked until revealed"><span class="lock">\uD83D\uDD12</span><span class="small">trump</span></button>`;
+      const col=RED[c.suit]?"red":"black";
+      return `<button class="card locked ${col}" style="margin-left:${i===0?0:-22}px;z-index:${i}" disabled title="Hidden trump — locked until revealed"><span class="c">${c.rank}</span><span class="p">${SYM[c.suit]}</span><span class="small">hidden trump</span></button>`;
     }
     const playable=state.phase==="playing"&&myTurn&&state.legal.includes(c.id);
     const dim=state.phase==="playing"&&myTurn&&!state.legal.includes(c.id);
@@ -178,6 +179,7 @@ function tableView(wrap, flashReveal){
   }).join("");
 
   wrap.innerHTML=`<div class="table ${flashReveal?'flash':''}">
+    ${state.phase!=="handover"?`<button class="boardreset" onclick="newMatch()" title="Reset">Reset</button>`:""}
     <div class="trumpbadge">${trumpBadgeHtml()}</div>
     ${state.highBid?`<div class="bidbadge">Bid ${state.highBid.amount} \u00b7 ${teamName(bidTeam)}</div>`:''}
     <div class="infostack">
@@ -187,7 +189,6 @@ function tableView(wrap, flashReveal){
         <div class="sline"><span class="nm">Your team</span><span class="nu" style="color:${myTeam===bidTeam?'#c9a23f':'#dce7e0'}">${state.tricksWon[myTeam]}${state.highBid&&bidTeam===myTeam?` / ${state.highBid.amount}`:''}</span></div>
         <div class="sline"><span class="nm">Opponents</span><span class="nu" style="color:${oppTeam===bidTeam?'#c9a23f':'#dce7e0'}">${state.tricksWon[oppTeam]}${state.highBid&&bidTeam===oppTeam?` / ${state.highBid.amount}`:''}</span></div>
       </div>
-      ${!state.trumpActive&&state.phase==="playing"?`<div class="hintb">Tricks pile up — no score until trump is revealed</div>`:''}
     </div>
     ${seatBox("top")}${seatBox("left")}${seatBox("right")}
     <div class="felt">${playedHtml("top")}${playedHtml("left")}${playedHtml("right")}${playedHtml("bottom")}<div class="feltmsg">${esc(state.message)}</div></div>
@@ -222,7 +223,7 @@ function trumpRevealOverlay(){
 function handoverOverlay(netMargin){
   if(state.phase!=="handover") return "";
   if(state.khoti){
-    return `<div class="overlay"><div class="ocard" style="border:2px solid var(--gold)"><div class="t" style="font-size:20px;line-height:1.45">Losing team is a khoti Randi,</div><div class="sc" style="font-size:15px;color:var(--gold)">Winning team gets 20% discount with Nagma</div><div class="sc">Won by a margin of ${state.khoti.margin}.</div><button class="btn" onclick="newMatch()">New match</button></div></div>`;
+    return `<div class="overlay"><div class="ocard" style="border:2px solid var(--gold)"><div class="t" style="font-size:20px;line-height:1.45">Losing team is a khoti Randi,</div><div class="sc" style="font-size:15px;color:var(--gold)">Winning team gets 20% discount with Nagma</div><div class="sc">Won by a margin of ${state.khoti.margin}.</div></div></div>`;
   }
   const loserTeam = state.loserTeam;
   const loserSeats = loserTeam==null ? [] : [0,1,2,3].filter(s=>TEAM_OF(s)===loserTeam);
@@ -232,7 +233,7 @@ function handoverOverlay(netMargin){
   return `<div class="overlay handover"><div class="lossstage" style="background-image:linear-gradient(rgba(4,7,6,.22),rgba(4,7,6,.42)),url('${ROUND_IMG}')">
     <div class="losstop"><div class="losstitle">${lossTitle}</div><div class="losssub">${allSkipped?"Done.":"Losing team must press TKMKBSDA to continue…"}</div></div>
     <div class="lossbuttons">${slots}</div>
-    <div class="lossactions"><button class="btn" onclick="nextHand()" ${allSkipped?"":"disabled"}>${allSkipped?"Deal next hand":"Waiting for TKMKBSDA"}</button><button class="btn ghost" onclick="newMatch()">Reset match</button></div>
+    <div class="lossactions"><button class="btn" onclick="nextHand()" ${allSkipped?"":"disabled"}>${allSkipped?"Deal next hand":"Waiting for TKMKBSDA"}</button></div>
   </div></div>`;
 }
 function skipBox(seat){
