@@ -53,13 +53,16 @@ let tt; function toast(t){ const el=document.getElementById("toast"); el.textCon
 function createRoom(){ const n=document.getElementById("nameInput").value.trim()||"Player"; me.name=n; me.isSpectator=false; try{sessionStorage.setItem("br_name",n);sessionStorage.setItem("br_role","player");}catch(e){} connect(()=>sendMsg({type:"create",name:n,playerId:me.playerId})); }
 function joinRoom(){ const n=document.getElementById("nameInput").value.trim()||"Player"; const c=document.getElementById("codeInput").value.trim().toUpperCase(); if(c.length!==4)return toast("Enter the 4-letter code."); me.name=n; me.isSpectator=false; try{sessionStorage.setItem("br_name",n);sessionStorage.setItem("br_role","player");}catch(e){} connect(()=>sendMsg({type:"join",code:c,name:n,playerId:me.playerId})); }
 function watchRoom(){ const n=document.getElementById("nameInput").value.trim()||"Spectator"; const c=document.getElementById("codeInput").value.trim().toUpperCase(); if(c.length!==4)return toast("Enter the 4-letter code."); me.name=n; me.isSpectator=true; try{sessionStorage.setItem("br_name",n);sessionStorage.setItem("br_role","spectator");}catch(e){} connect(()=>sendMsg({type:"spectate",code:c,name:n,playerId:me.playerId})); }
+function createBotRoom(){ const n=document.getElementById("nameInput").value.trim()||"Player"; me.name=n; me.isSpectator=false; try{sessionStorage.setItem("br_name",n);sessionStorage.setItem("br_role","player");}catch(e){} connect(()=>sendMsg({type:"createBots",name:n,playerId:me.playerId})); }
+function addBot(){ sendMsg({type:"addBot"}); }
+function fillBots(){ sendMsg({type:"fillBots"}); }
 function startGame(){ sendMsg({type:"start"}); }
 function bid(a){ sendMsg({type:"bid",amount:a}); }
 function pickTrump(cardId){ sendMsg({type:"pickTrump",cardId}); }
 function playCard(id){ sendMsg({type:"play",cardId:id}); }
 function nextHand(){ sendMsg({type:"nextHand"}); }
 function skipMe(){ if(!state || state.phase!=="handover" || me.seat==null) return; const n=(localSkipTaps[me.seat]||0)+1; localSkipTaps[me.seat]=n; if(n>=13){ sendMsg({type:"skip"}); } render(false); }
-function newMatch(){ sendMsg({type:"newMatch"}); }
+function newMatch(){ if(confirm("Reset this match and return everyone to the lobby?")) sendMsg({type:"newMatch"}); }
 
 if(me.playerId&&me.code){ connect(()=>sendMsg({type:"rejoin",code:me.code,playerId:me.playerId})); }
 
@@ -99,7 +102,7 @@ function landing(wrap){
         <div style="border:1px solid rgba(201,162,63,.25);border-radius:16px;padding:14px;background:rgba(0,0,0,.24);"><div style="font-size:24px;color:var(--gold);font-weight:700;">1</div><div style="font-size:11px;color:#c7d3cb;text-transform:uppercase;letter-spacing:1px;">hidden trump</div></div>
       </div>
       <input id="nameInput" placeholder="Your name" maxlength="16" value="${esc(me.name)}" style="width:100%;max-width:280px;" />
-      <div class="row" style="margin-top:14px;"><button class="btn" onclick="createRoom()" style="width:100%;max-width:280px;">Create a room</button></div>
+      <div class="row" style="margin-top:14px;"><button class="btn" onclick="createRoom()" style="width:100%;max-width:280px;">Create a room</button></div><div class="row" style="margin-top:10px;"><button class="btn ghost" onclick="createBotRoom()" style="width:100%;max-width:280px;">Play with 3 bots</button></div>
       <div class="or" style="margin:15px 0 8px;">— join or spectate —</div>
       <div class="row"><input id="codeInput" class="code" placeholder="CODE" maxlength="4" style="width:132px;" /><button class="btn ghost" onclick="joinRoom()">Join</button><button class="btn ghost" onclick="watchRoom()">Watch</button></div>
     </div>
@@ -111,15 +114,16 @@ function lobby(wrap){
   const seatCards=state.players.map((p,i)=>`<div style="border:1px solid ${p&&p.connected?'rgba(201,162,63,.65)':'rgba(155,179,168,.18)'};border-radius:16px;padding:12px;background:${p&&p.connected?'rgba(201,162,63,.10)':'rgba(0,0,0,.22)'};min-height:76px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;">
     <div style="width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:${p&&p.connected?'var(--gold)':'#2b3a35'};color:${p&&p.connected?'#1a1305':'#9bb3a8'};font-weight:800;">${p&&p.name?esc(p.name[0].toUpperCase()):i+1}</div>
     <div style="font-size:12px;color:#dce7e0;">Seat ${i+1}${i===me.seat?' (you)':''}</div>
-    <div style="font-size:12px;color:${p?'var(--gold)':'#6c8479'};font-style:italic;">${p?esc(p.name):'empty'}</div>
+    <div style="font-size:12px;color:${p?'var(--gold)':'#6c8479'};font-style:italic;">${p?esc(p.name):'empty'}${p&&p.bot?' · BOT':''}</div>
   </div>`).join("");
   wrap.innerHTML=`<div class="lobby" style="justify-content:flex-start;padding-top:28px;min-height:calc(100vh - 120px);">
     <div style="width:min(94vw,460px);border:1px solid rgba(201,162,63,.42);border-radius:24px;padding:20px;background:radial-gradient(ellipse at 50% 35%,rgba(15,93,74,.36),rgba(0,0,0,.28) 60%,rgba(0,0,0,.45));box-shadow:0 18px 55px rgba(0,0,0,.48),inset 0 0 60px rgba(0,0,0,.25);">
       <div style="font-size:14px;letter-spacing:3px;text-transform:uppercase;color:#9bb3a8;">Room code</div>
       <div class="codebig" style="font-size:54px;letter-spacing:12px;margin:6px 0 12px;">${state.code}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0;">${seatCards}</div>
-      <p class="hint" style="max-width:360px;margin:12px auto;">Teams: seats 1 & 3 vs 2 & 4. Share this code; the game starts when all four seats are filled.</p>
+      <p class="hint" style="max-width:360px;margin:12px auto;">Teams: seats 1 & 3 vs 2 & 4. Add bots to fill empty seats, or share this code for humans.</p>
       ${spectators.length?`<p class="hint">Watching: ${spectators.map(s=>esc(s.name)).join(", ")}</p>`:""}
+      ${seated<4?`<div class="row" style="margin-top:10px;"><button class="btn ghost" onclick="addBot()">Add bot</button><button class="btn ghost" onclick="fillBots()">Fill with bots</button></div>`:""}
       <button class="btn" onclick="startGame()" ${seated===4?'':'disabled'} style="width:100%;max-width:280px;margin-top:10px;">${seated===4?'Start the game':`Waiting (${seated}/4)`}</button>
     </div>
   </div>`;
@@ -160,10 +164,11 @@ function tableView(wrap, flashReveal){
     const nm=pl?esc(pl.name):"empty";
     const isP=seat===partnerSeat;
     const isHolder=state.trumpHolder===seat;
+    const isBot=pl&&pl.bot;
     const bidShown = state.phase==="bidding"&&state.bids[seat]!=null ? (state.bids[seat]==="pass"?"pass":"bid "+state.bids[seat]) : "";
     return `<div class="seat ${p} ${active?'active':''} ${pl&&!pl.connected?'offline':''}">
       <div class="avatar">${nm[0]?nm[0].toUpperCase():'?'}</div>
-      <div class="seatname">${nm}${isP?' <span class="tag">partner</span>':''}${isHolder?' <span class="tag">\u2756</span>':''}</div>
+      <div class="seatname">${nm}${isBot?' <span class="tag">BOT</span>':''}${isP?' <span class="tag">partner</span>':''}${isHolder?' <span class="tag">\u2756</span>':''}</div>
       ${bidShown?`<div class="tag">${bidShown}</div>`:''}
       <div class="seatname" style="font-size:10px;color:#9bb3a8">${state.handCounts[seat]} cards</div></div>`;
   }
