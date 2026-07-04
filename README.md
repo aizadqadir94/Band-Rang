@@ -82,3 +82,20 @@ Then open four browser tabs at:
 ```text
 http://localhost:3000
 ```
+
+
+## Latest package notes
+
+This build includes the polished board UI, flashing near-52 warning, top-right reset with confirmation, blurred locked hidden-trump card, bot seats, solo play with three bots, bid 8/10 dealing rules, fixed back-to-back Ace rule, and enforced 13-card deals.
+
+For Render/GitHub, keep this structure:
+
+```text
+server.js
+package.json
+package-lock.json
+README.md
+public/
+  index.html
+  app.js
+```

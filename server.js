@@ -132,11 +132,15 @@ function newRoom(code) {
     loserTeam: null,                   // team that lost the latest hand and must complete TKMKBSDA
     skipsDone: [false, false, false, false], // per-seat TKMKBSDA completion gate
     message: "Waiting for players\u2026",
+    botSeq: 0,
+    botTimer: null,
   };
 }
 function seatedCount(room) { return room.seats.filter((s) => s && s.connected).length; }
 function spectatorCount(room) { return room.spectators.filter((s) => s && s.connected).length; }
-function connectedCount(room) { return seatedCount(room) + spectatorCount(room); }
+function humanSeatCount(room) { return room.seats.filter((s) => s && !s.bot && s.connected).length; }
+function connectedCount(room) { return humanSeatCount(room) + spectatorCount(room); }
+function isBotSeat(room, seat) { const p = room?.seats?.[seat]; return !!(p && p.bot); }
 function teamName(team) { return team === 0 ? "Team 1" : "Team 2"; }
 function nextSeatOnTeam(fromSeat, team) {
   for (let step = 1; step <= 4; step++) {
@@ -201,7 +205,7 @@ function stateFor(room, seat, isSpectator = false) {
     isSpectator,
     code: room.code,
     phase: room.phase,
-    players: room.seats.map((s) => (s ? { name: s.name, connected: s.connected } : null)),
+    players: room.seats.map((s) => (s ? { name: s.name, connected: s.connected, bot: !!s.bot } : null)),
     spectators: room.spectators.map((s) => ({ name: s.name, connected: s.connected })),
     handCounts: room.hands.map((h) => h.length),
     hand: !isSpectator && seat != null && seat >= 0 ? room.hands[seat] : [],
@@ -237,13 +241,14 @@ function stateFor(room, seat, isSpectator = false) {
 }
 function broadcast(room) {
   room.seats.forEach((s, seat) => {
-    if (s && s.connected && s.ws.readyState === 1) s.ws.send(JSON.stringify(stateFor(room, seat, false)));
+    if (s && s.connected && !s.bot && s.ws && s.ws.readyState === 1) s.ws.send(JSON.stringify(stateFor(room, seat, false)));
   });
   room.spectators.forEach((s) => {
-    if (s && s.connected && s.ws.readyState === 1) s.ws.send(JSON.stringify(stateFor(room, null, true)));
+    if (s && s.connected && s.ws && s.ws.readyState === 1) s.ws.send(JSON.stringify(stateFor(room, null, true)));
   });
+  maybeScheduleBots(room);
 }
-function send(ws, obj) { if (ws.readyState === 1) ws.send(JSON.stringify(obj)); }
+function send(ws, obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
 
 // ---------------------------------------------------------------- dealing / flow
 function startHand(room) {
@@ -581,6 +586,137 @@ function resetToLobby(room) {
   broadcast(room);
 }
 
+
+
+// ---------------------------------------------------------------- bots
+const BOT_NAMES = ["Babar Bot", "Nagma Bot", "Raja Bot", "Mirza Bot", "Sultan Bot", "Chaudhry Bot"];
+function addBotToRoom(room) {
+  if (!room || room.phase !== "lobby") return false;
+  const seat = room.seats.findIndex((s) => s === null);
+  if (seat === -1) return false;
+  const name = BOT_NAMES[room.botSeq % BOT_NAMES.length];
+  room.botSeq += 1;
+  room.seats[seat] = {
+    id: `bot_${room.code}_${seat}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    name,
+    ws: null,
+    connected: true,
+    bot: true,
+  };
+  room.message = seatedCount(room) < 4
+    ? `Bot added. Waiting for players… (${seatedCount(room)}/4)`
+    : "All four seated. Anyone can start.";
+  return true;
+}
+function fillBots(room) {
+  let added = 0;
+  while (room && room.phase === "lobby" && seatedCount(room) < 4) {
+    if (!addBotToRoom(room)) break;
+    added += 1;
+  }
+  return added;
+}
+function cardStrength(card) {
+  if (!card) return 0;
+  return RANK_VALUE[card.rank] || 0;
+}
+function chooseBotBid(room, seat) {
+  const floor = room.highBid ? room.highBid.amount + 1 : MIN_BID;
+  if (floor > 13) return "pass";
+  const hand = room.hands[seat] || [];
+  const high = hand.filter((c) => ["A", "K", "Q", "J"].includes(c.rank)).length;
+  const aces = hand.filter((c) => c.rank === "A").length;
+  const suitCounts = Object.fromEntries(SUITS.map((s) => [s, hand.filter((c) => c.suit === s).length]));
+  const longest = Math.max(...Object.values(suitCounts));
+  let ceiling = 7 + Math.min(3, Math.floor((high + aces + Math.max(0, longest - 2)) / 2));
+  if (aces >= 2) ceiling += 1;
+  if (Math.random() < 0.16) ceiling += 1;
+  ceiling = Math.max(7, Math.min(11, ceiling));
+  return floor <= ceiling ? floor : "pass";
+}
+function chooseBotTrump(room, seat) {
+  const hand = room.hands[seat] || [];
+  const scoreCard = (card) => {
+    const sameSuit = hand.filter((c) => c.suit === card.suit).length;
+    return cardStrength(card) * 3 + sameSuit * 5 + (card.rank === "A" ? 7 : card.rank === "K" ? 4 : 0);
+  };
+  return [...hand].sort((a, b) => scoreCard(b) - scoreCard(a))[0]?.id;
+}
+function chooseBotCard(room, seat) {
+  const ids = legalMoveIds(room, seat);
+  const cards = (room.hands[seat] || []).filter((c) => ids.includes(c.id));
+  if (!cards.length) return null;
+  const zeroAceFor = (c) => c.rank === "A" && room.aceWonLastTrick[seat];
+  const playValue = (c) => zeroAceFor(c) ? 0 : cardStrength(c);
+  const lowFirst = [...cards].sort((a, b) => playValue(a) - playValue(b));
+  const highFirst = [...cards].sort((a, b) => playValue(b) - playValue(a));
+  if (room.trick.length === 0) {
+    const nonAce = highFirst.find((c) => !(c.rank === "A" && room.aceWonLastTrick[seat]));
+    return (nonAce || highFirst[0]).id;
+  }
+  const winning = lowFirst.filter((c) => {
+    const candidate = { seat, card: c, faceDown: false, zeroAce: zeroAceFor(c) };
+    const best = bestPlayInTrick([...room.trick, candidate], room.trump, room.trumpActive);
+    return best === candidate;
+  });
+  // Try to win cheaply if possible; otherwise throw the cheapest legal card.
+  return (winning[0] || lowFirst[0]).id;
+}
+function runBotTurn(code) {
+  const room = rooms.get(code);
+  if (!room) return;
+  room.botTimer = null;
+  if (room.phase === "bidding" && isBotSeat(room, room.bidTurn)) {
+    handleBot(room, room.bidTurn, { type: "bid", amount: chooseBotBid(room, room.bidTurn) });
+    return;
+  }
+  if (room.phase === "pickTrump" && isBotSeat(room, room.trumpHolder)) {
+    const cardId = chooseBotTrump(room, room.trumpHolder);
+    if (cardId) handleBot(room, room.trumpHolder, { type: "pickTrump", cardId });
+    return;
+  }
+  if (room.phase === "playing" && room.trick.length < 4 && isBotSeat(room, room.turn)) {
+    const cardId = chooseBotCard(room, room.turn);
+    if (cardId) handleBot(room, room.turn, { type: "play", cardId });
+    return;
+  }
+  if (room.phase === "handover" && room.loserTeam != null && !room.khoti) {
+    const loserSeats = [0, 1, 2, 3].filter((s) => TEAM_OF(s) === room.loserTeam);
+    let changed = false;
+    for (const s of loserSeats) {
+      if (isBotSeat(room, s) && !room.skipsDone[s]) {
+        room.skipsDone[s] = true;
+        changed = true;
+      }
+    }
+    const allSkipped = loserSeats.every((s) => room.skipsDone[s]);
+    if (changed) broadcast(room);
+    if (allSkipped && loserSeats.every((s) => isBotSeat(room, s))) {
+      setTimeout(() => {
+        const r = rooms.get(code);
+        if (!r || r.phase !== "handover" || r.khoti) return;
+        r.dealer = (r.dealer + 1) % 4;
+        startHand(r);
+      }, 900);
+    }
+  }
+}
+function scheduleBot(room, delay = 650) {
+  if (!room) return;
+  clearTimeout(room.botTimer);
+  room.botTimer = setTimeout(() => runBotTurn(room.code), delay + Math.floor(Math.random() * 450));
+}
+function maybeScheduleBots(room) {
+  if (!room) return;
+  if (room.phase === "bidding" && isBotSeat(room, room.bidTurn)) return scheduleBot(room);
+  if (room.phase === "pickTrump" && isBotSeat(room, room.trumpHolder)) return scheduleBot(room, 750);
+  if (room.phase === "playing" && room.trick.length < 4 && isBotSeat(room, room.turn)) return scheduleBot(room, 700);
+  if (room.phase === "handover" && room.loserTeam != null) return scheduleBot(room, 500);
+}
+function handleBot(room, seat, msg) {
+  handle({ roomCode: room.code, seat, playerId: room.seats[seat]?.id, isSpectator: false }, msg);
+}
+
 // ---------------------------------------------------------------- websocket
 const wss = new WebSocketServer({ server });
 wss.on("connection", (ws) => {
@@ -672,6 +808,16 @@ function handle(ws, msg) {
       joinRoom(ws, r, msg.name || "Player", msg.playerId);
       break;
     }
+    case "createBots": {
+      const code = makeCode();
+      const r = newRoom(code);
+      rooms.set(code, r);
+      joinRoom(ws, r, msg.name || "Player", msg.playerId);
+      fillBots(r);
+      if (seatedCount(r) === 4) startHand(r);
+      else broadcast(r);
+      break;
+    }
     case "join": {
       const r = rooms.get((msg.code || "").toUpperCase());
       if (!r) return send(ws, { type: "error", message: "No room with that code." });
@@ -703,6 +849,19 @@ function handle(ws, msg) {
       ws.roomCode = r.code; ws.seat = null; ws.playerId = msg.playerId; ws.isSpectator = true;
       ws.isAlive = true;
       broadcast(r);
+      break;
+    }
+    case "addBot": {
+      if (!room || room.phase !== "lobby") return;
+      if (!addBotToRoom(room)) return send(ws, { type: "error", message: "No empty seat for a bot." });
+      broadcast(room);
+      break;
+    }
+    case "fillBots": {
+      if (!room || room.phase !== "lobby") return;
+      const added = fillBots(room);
+      if (!added) return send(ws, { type: "error", message: "No empty seats for bots." });
+      broadcast(room);
       break;
     }
     case "start": {
