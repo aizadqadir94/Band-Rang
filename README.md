@@ -86,7 +86,7 @@ http://localhost:3000
 
 ## Latest package notes
 
-This build includes the polished board UI, flashing near-52 warning, top-right reset with confirmation, blurred locked hidden-trump card, bot seats, solo play with three bots, bid 8/10 dealing rules, fixed back-to-back Ace rule, and enforced 13-card deals.
+This build includes the polished board UI, flashing near-52 warning, top-right reset with confirmation, greyed, visible locked hidden-trump card for the trump setter, bot seats, solo play with three bots, bid 8 dealing rule (bid 10 now deals normally), fixed back-to-back Ace rule, and enforced 13-card deals.
 
 For Render/GitHub, keep this structure:
 
@@ -99,3 +99,17 @@ public/
   index.html
   app.js
 ```
+
+
+## Latest package notes
+- Premium board UI cleanup for mobile.
+- TKMKBSDA local tap counter resets each hand; button movement is constrained inside its slot.
+- Gameplay rules are unchanged from the bot/rules package.
+
+
+## Current update
+
+- Removed the special bid 10 dealing rule. A bid of 10 now uses the normal remaining-card deal.
+- Kept the special bid 8 restriction unchanged.
+- In phone portrait mode, a 13-card hand is displayed in two compact rows so every card is readable.
+- The trump setter sees the selected hidden-trump card greyed out and disabled; its rank and suit remain visible only to that player.

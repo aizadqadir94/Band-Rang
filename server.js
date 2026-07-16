@@ -362,38 +362,6 @@ function dealRemainingNormal(room) {
   }
   room.hands = room.hands.map(sortHand);
 }
-function dealBid10Remaining(room, remaining) {
-  // Bid 10 reward:
-  // Restrict the opposing team in the remaining 8-card deal.
-  // Preferred restrictions: no K/A, and not more trump cards than bidding team.
-  // If an impossible deck state occurs, the fallback fills all hands to 13 cards.
-  const bidTeam = TEAM_OF(room.highBid.seat);
-  const restrictedTeam = 1 - bidTeam;
-  const restrictedSeats = [0, 1, 2, 3].filter((s) => TEAM_OF(s) === restrictedTeam);
-  const freeSeats = [0, 1, 2, 3].filter((s) => TEAM_OF(s) !== restrictedTeam);
-  const assigned = { 0: [], 1: [], 2: [], 3: [] };
-  const pool = shuffleInPlace([...remaining]);
-  const totalRemainingTrumps = remaining.filter((c) => c.suit === room.trump).length;
-  const restrictedTrumpCap = Math.floor(totalRemainingTrumps / 2);
-  let restrictedTrumps = 0;
-
-  fillRoundRobin(assigned, pool, restrictedSeats, (c) => !isHighCard(c) && c.suit !== room.trump);
-  fillRoundRobin(assigned, pool, restrictedSeats, (c) => {
-    if (isHighCard(c) || c.suit !== room.trump) return false;
-    if (restrictedTrumps >= restrictedTrumpCap) return false;
-    restrictedTrumps += 1;
-    return true;
-  });
-
-  // If restrictions cannot fill the opposing team, relax only enough to complete those 16 cards.
-  fillRoundRobin(assigned, pool, restrictedSeats, (c) => !isHighCard(c));
-  fillRoundRobin(assigned, pool, restrictedSeats, () => true);
-
-  // Bidding team gets the rest.
-  fillRoundRobin(assigned, pool, freeSeats, () => true);
-  completeAnyMissing(assigned, pool);
-  applyAssignedDeal(room, assigned);
-}
 function dealBid8Remaining(room, remaining) {
   // Bid 8 penalty, amended:
   // Restrict the bidding team in the remaining 8-card deal.
@@ -432,7 +400,6 @@ function dealRemaining(room) {
   const remaining = deck.slice(idx);
   const bidAmount = room.highBid?.amount;
 
-  if (bidAmount === 10) return dealBid10Remaining(room, remaining);
   if (bidAmount === 8) return dealBid8Remaining(room, remaining);
   return dealRemainingNormal(room);
 }
