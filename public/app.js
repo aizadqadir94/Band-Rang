@@ -105,7 +105,7 @@ function landing(wrap){
         <div style="border:1px solid rgba(201,162,63,.25);border-radius:16px;padding:14px;background:rgba(0,0,0,.24);"><div style="font-size:24px;color:var(--gold);font-weight:700;">1</div><div style="font-size:11px;color:#c7d3cb;text-transform:uppercase;letter-spacing:1px;">hidden trump</div></div>
       </div>
       <input id="nameInput" placeholder="Your name" maxlength="16" value="${esc(me.name)}" style="width:100%;max-width:280px;" />
-      <div class="row" style="margin-top:14px;"><button class="btn" onclick="createRoom()" style="width:100%;max-width:280px;">Create a room</button></div><div class="row" style="margin-top:10px;"><button class="btn ghost" onclick="createBotRoom()" style="width:100%;max-width:280px;">Play with 3 bots</button></div>
+      <div class="row" style="margin-top:14px;"><button class="btn" onclick="createRoom()" style="width:100%;max-width:280px;">Create a room</button></div><div class="row" style="margin-top:10px;"><button class="btn ghost" onclick="createBotRoom()" style="width:100%;max-width:280px;">Quick test · Play with 3 bots</button></div>
       <div class="or" style="margin:15px 0 8px;">— join or spectate —</div>
       <div class="row"><input id="codeInput" class="code" placeholder="CODE" maxlength="4" style="width:132px;" /><button class="btn ghost" onclick="joinRoom()">Join</button><button class="btn ghost" onclick="watchRoom()">Watch</button></div>
     </div>
@@ -183,7 +183,7 @@ function tableView(wrap, flashReveal){
   }
 
   const myTurn=!state.isSpectator && state.turn===me.seat;
-  const portraitHand=window.matchMedia("(max-width: 520px) and (orientation: portrait)").matches && state.hand.length>8;
+  const portraitHand=window.matchMedia("(max-width: 520px) and (orientation: portrait)").matches && !state.isSpectator && state.hand.length>0;
   function handCardHtml(c,i,noOverlap=false){
     const margin=noOverlap||i===0?0:-22;
     const locked=!state.trumpActive && state.trumpCardId===c.id;
