@@ -86,7 +86,7 @@ http://localhost:3000
 
 ## Latest package notes
 
-This build includes the polished board UI, flashing near-52 warning, top-right reset with confirmation, greyed, visible locked hidden-trump card for the trump setter, bot seats, solo play with three bots, bid 8 dealing rule (bid 10 now deals normally), fixed back-to-back Ace rule, and enforced 13-card deals.
+This build includes the polished board UI, flashing near-52 warning, top-right reset with confirmation, greyed, visible locked hidden-trump card for the trump setter, bot seats, solo play with three bots, normal dealing for every bid, fixed back-to-back Ace rule, and enforced 13-card deals.
 
 For Render/GitHub, keep this structure:
 
@@ -110,6 +110,17 @@ public/
 ## Current update
 
 - Removed the special bid 10 dealing rule. A bid of 10 now uses the normal remaining-card deal.
-- Kept the special bid 8 restriction unchanged.
+- Removed the special bid 8 restriction; every bid now uses the normal deal.
 - In phone portrait mode, a 13-card hand is displayed in two compact rows so every card is readable.
 - The trump setter sees the selected hidden-trump card greyed out and disabled; its rank and suit remain visible only to that player.
+
+
+## Bot testing
+
+- Select **Quick test · Play with 3 bots** on the opening screen to start immediately with three computer players.
+- In a normal room, use **Add bot** or **Fill with bots** to occupy empty seats.
+- Bots bid, choose trump, play legal cards, and continue through handover rounds automatically.
+
+## Portrait hand layout
+
+On phone portrait screens, the player hand stays in two balanced rows for the entire hand, including when eight or fewer cards remain. The second row keeps its space until the final card so the layout does not collapse back into overlapping cards.
