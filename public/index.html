@@ -321,6 +321,19 @@
     .fan.tworow .card{flex-basis:40px;width:40px;height:58px;}
   }
 
+
+  /* Private trump-card highlight: activated only on the local device after a
+     double-tap on the top-left round/bidding badge. */
+  .roundb.hinttrigger{cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none;}
+  .roundb.hinttrigger.hinton{box-shadow:0 0 0 2px rgba(255,224,105,.88),0 0 22px rgba(255,70,70,.54),0 7px 18px rgba(0,0,0,.34)!important;}
+  @keyframes trumpHintPulse{
+    from{box-shadow:0 0 0 2px #ffe16a,0 0 13px rgba(255,50,50,.64),0 8px 18px rgba(0,0,0,.42);}
+    to{box-shadow:0 0 0 4px #fff2a6,0 0 28px rgba(255,42,42,.92),0 11px 23px rgba(0,0,0,.56);}
+  }
+  .card.trumphinted{position:relative;animation:trumpHintPulse .78s ease-in-out infinite alternate!important;filter:none!important;opacity:1!important;}
+  .card.trumphinted:before{content:"";position:absolute;inset:-3px;border:2px solid rgba(255,225,93,.96);border-radius:inherit;pointer-events:none;z-index:3;}
+  .card.locked.trumphinted{opacity:.76!important;filter:grayscale(.72)!important;}
+
 </style>
 </head>
 <body>

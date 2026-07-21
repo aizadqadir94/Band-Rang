@@ -7,6 +7,7 @@ const ROUND_IMG='data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAkGBwgH
 let ws, state=null, me={seat:null,code:null,name:"",playerId:null,isSpectator:false};
 let localSkipTaps={};
 let pingTimer=null, reconnectTimer=null, intentionalClose=false, reconnecting=false, lastTrumpActive=false, trumpRevealCard=null, trumpRevealTimer=null, previousPhase=null;
+let privateTrumpHighlightSuit=null, lastInfoBadgeTap=0;
 try{ me.playerId=sessionStorage.getItem("br_pid")||null; me.code=sessionStorage.getItem("br_code")||null; me.name=sessionStorage.getItem("br_name")||""; me.isSpectator=sessionStorage.getItem("br_role")==="spectator"; }catch(e){}
 
 function startPing(){
@@ -36,7 +37,9 @@ function connect(then){
     } else if(m.type==="state"){
       const wasActive = state ? state.trumpActive : false;
       const enteringHandover = (!state || state.phase !== "handover") && m.phase === "handover";
+      const startingNewHand = m.phase === "bidding" && (!state || state.phase !== "bidding");
       if(enteringHandover){ localSkipTaps = {}; }
+      if(startingNewHand || m.phase === "lobby" || m.phase === "handover"){ privateTrumpHighlightSuit=null; }
       const revealNow = !wasActive && m.trumpActive && m.trumpCard;
       previousPhase = state ? state.phase : null;
       state=m; me.seat=m.you; me.isSpectator=!!m.isSpectator;
@@ -46,6 +49,16 @@ function connect(then){
         trumpRevealTimer=setTimeout(()=>{ trumpRevealCard=null; render(false); }, 2000);
       }
       render(revealNow);
+    } else if(m.type==="trumpHighlight"){
+      if(m.suit){
+        privateTrumpHighlightSuit=m.suit;
+        toast(`${SUIT_NAME[m.suit]} cards highlighted privately.`);
+        render(false);
+      }else{
+        privateTrumpHighlightSuit=null;
+        if(m.message) toast(m.message);
+        render(false);
+      }
     } else if(m.type==="error") toast(m.message);
   };
 }
@@ -66,6 +79,24 @@ function playCard(id){ sendMsg({type:"play",cardId:id}); }
 function nextHand(){ sendMsg({type:"nextHand"}); }
 function skipMe(){ if(!state || state.phase!=="handover" || me.seat==null) return; if(state.skipsDone && state.skipsDone[me.seat]) return; const n=Math.min(13,(localSkipTaps[me.seat]||0)+1); localSkipTaps[me.seat]=n; if(n>=13){ sendMsg({type:"skip"}); } render(false); }
 function newMatch(){ if(confirm("Reset this match and return everyone to the lobby?")) sendMsg({type:"newMatch"}); }
+function infoBadgeTap(ev){
+  if(!state || state.isSpectator || me.seat==null) return;
+  const now=Date.now();
+  if(now-lastInfoBadgeTap<=420){
+    lastInfoBadgeTap=0;
+    if(ev){ ev.preventDefault(); ev.stopPropagation(); }
+    if(privateTrumpHighlightSuit){
+      privateTrumpHighlightSuit=null;
+      toast("Private trump highlight off.");
+      render(false);
+    }else{
+      sendMsg({type:"requestTrumpHighlight"});
+    }
+  }else{
+    lastInfoBadgeTap=now;
+  }
+}
+
 
 if(me.playerId&&me.code){ connect(()=>sendMsg({type:"rejoin",code:me.code,playerId:me.playerId})); }
 
@@ -187,14 +218,15 @@ function tableView(wrap, flashReveal){
   function handCardHtml(c,i,noOverlap=false){
     const margin=noOverlap||i===0?0:-22;
     const locked=!state.trumpActive && state.trumpCardId===c.id;
+    const trumpHinted=!!privateTrumpHighlightSuit && c.suit===privateTrumpHighlightSuit;
     if(locked){
       const col=RED[c.suit]?"red":"black";
-      return `<button class="card locked ${col}" style="margin-left:${margin}px;z-index:${i}" disabled title="Your selected trump — locked until revealed"><span class="c">${c.rank}</span><span class="p">${SYM[c.suit]}</span><span class="small">locked trump</span></button>`;
+      return `<button class="card locked ${col} ${trumpHinted?'trumphinted':''}" style="margin-left:${margin}px;z-index:${i}" disabled title="Your selected trump — locked until revealed"><span class="c">${c.rank}</span><span class="p">${SYM[c.suit]}</span><span class="small">locked trump</span></button>`;
     }
     const playable=state.phase==="playing"&&myTurn&&state.legal.includes(c.id);
     const dim=state.phase==="playing"&&myTurn&&!state.legal.includes(c.id);
     const col=RED[c.suit]?"red":"black";
-    return `<button class="card ${col} ${playable?'playable':''} ${dim?'dim':''}" style="margin-left:${margin}px;z-index:${i}" ${playable?`onclick="playCard('${c.id}')"`:'disabled'}><span class="c">${c.rank}</span><span class="p">${SYM[c.suit]}</span></button>`;
+    return `<button class="card ${col} ${playable?'playable':''} ${dim?'dim':''} ${trumpHinted?'trumphinted':''}" style="margin-left:${margin}px;z-index:${i}" ${playable?`onclick="playCard('${c.id}')"`:'disabled'}><span class="c">${c.rank}</span><span class="p">${SYM[c.suit]}</span></button>`;
   }
   let handHtml;
   if(portraitHand){
@@ -212,7 +244,7 @@ function tableView(wrap, flashReveal){
     <div class="trumpbadge">${trumpBadgeHtml()}</div>
     ${state.highBid?`<div class="bidbadge">Bid ${state.highBid.amount} \u00b7 ${teamName(bidTeam)}</div>`:''}
     <div class="infostack">
-      <div class="roundb">${roundNum?`Round ${roundNum} / 13`:(state.phase==="bidding"?"Bidding":state.phase==="pickTrump"?"Choosing trump":"\u2014")}</div>
+      <div class="roundb hinttrigger ${privateTrumpHighlightSuit?'hinton':''}" onclick="infoBadgeTap(event)" title="Double-tap for private trump-card highlight">${roundNum?`Round ${roundNum} / 13`:(state.phase==="bidding"?"Bidding":state.phase==="pickTrump"?"Choosing trump":"\u2014")}</div>
       <div class="pileb"><span class="n">${state.pile}</span><span class="l">in pile</span></div>
       <div class="scorecard">
         <div class="sline"><span class="nm">Your team</span><span class="nu" style="color:${myTeam===bidTeam?'#c9a23f':'#dce7e0'}">${state.tricksWon[myTeam]}${state.highBid&&bidTeam===myTeam?` / ${state.highBid.amount}`:''}</span></div>
