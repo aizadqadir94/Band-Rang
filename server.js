@@ -1083,6 +1083,19 @@ function handle(ws, msg) {
       broadcast(room);
       break;
     }
+    case "requestTrumpHighlight": {
+      // Private helper: only a seated member of the trump-setting team may
+      // request the hidden trump suit. The reply goes only to this socket;
+      // nothing is added to shared room state or broadcast to other players.
+      if (!room || ws.isSpectator || ws.seat == null) return;
+      if (!room.trump || room.trumpHolder == null || room.phase === "lobby" || room.phase === "bidding" || room.phase === "pickTrump") {
+        return send(ws, { type: "trumpHighlight", suit: null, message: "Trump has not been selected yet." });
+      }
+      if (TEAM_OF(ws.seat) !== TEAM_OF(room.trumpHolder)) {
+        return send(ws, { type: "trumpHighlight", suit: null, message: "This private highlight is available only to the trump-setting team." });
+      }
+      return send(ws, { type: "trumpHighlight", suit: room.trump });
+    }
     case "pickTrump": {
       if (!room || room.phase !== "pickTrump" || room.trumpHolder !== ws.seat) return;
       applyTrumpPick(room, msg.cardId);

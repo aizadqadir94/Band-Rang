@@ -132,3 +132,7 @@ If the selected hidden trump is still unrevealed on the final trick, the server 
 ## Smart partnership bots
 
 Bots now use a fair, public-information partnership strategy instead of simply playing high cards. Defenders coordinate around short suits to expose trump; the bidding team rotates safer suits and sheds weak cards to delay exposure. Bots avoid overtaking a winning partner, preserve controls, block opponent scoops, choose the cheapest winning card, and select a low card as the locked hidden trump so high trump controls remain playable.
+
+## Private trump-card highlight
+
+After the hidden trump has been selected, a human member of the trump-setting team can double-tap the top-left **Bidding / Round** badge. Only that player’s device receives the trump suit, and only that player’s matching hand cards glow. Double-tap again to turn the highlight off. Opponents and spectators cannot use the private hint.
