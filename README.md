@@ -124,3 +124,11 @@ public/
 ## Portrait hand layout
 
 On phone portrait screens, the player hand stays in two balanced rows for the entire hand, including when eight or fewer cards remain. The second row keeps its space until the final card so the layout does not collapse back into overlapping cards.
+
+## Final hidden-trump safeguard
+
+If the selected hidden trump is still unrevealed on the final trick, the server now reveals and unlocks it automatically when it becomes the trump setter's only remaining card. This prevents the hand from getting stuck with no legal card.
+
+## Smart partnership bots
+
+Bots now use a fair, public-information partnership strategy instead of simply playing high cards. Defenders coordinate around short suits to expose trump; the bidding team rotates safer suits and sheds weak cards to delay exposure. Bots avoid overtaking a winning partner, preserve controls, block opponent scoops, choose the cheapest winning card, and select a low card as the locked hidden trump so high trump controls remain playable.

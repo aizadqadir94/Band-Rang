@@ -134,6 +134,10 @@ function newRoom(code) {
     message: "Waiting for players\u2026",
     botSeq: 0,
     botTimer: null,
+    // Bot intelligence uses only public play history plus each bot's own hand.
+    botVoidSuits: [[], [], [], []],
+    botTrickHistory: [],
+    botLastLeadSuit: [null, null, null, null],
   };
 }
 function seatedCount(room) { return room.seats.filter((s) => s && s.connected).length; }
@@ -168,6 +172,25 @@ function publicPlay(play) {
 function publicLastTrick(lastTrick) {
   if (!lastTrick) return null;
   return { winner: lastTrick.winner, trick: lastTrick.trick.map(publicPlay) };
+}
+
+function revealLockedTrumpIfOnlyCard(room) {
+  // If trump was never exposed during the first 12 tricks, the bidder reaches
+  // the final trick with the selected trump as their only card. The card was
+  // intentionally locked while trump was hidden, so reveal it now to prevent
+  // an empty legal-move list and a stuck hand.
+  if (!room || room.phase !== "playing" || room.trumpActive) return false;
+  if (room.turn !== room.trumpHolder || room.trumpHolder == null) return false;
+
+  const hand = room.hands[room.trumpHolder] || [];
+  if (hand.length !== 1 || hand[0].id !== room.trumpCardId) return false;
+
+  revealTrump(room, room.trumpHolder, false);
+  const cardTxt = room.trumpCard
+    ? `${room.trumpCard.rank}${room.trumpCard.suit}`
+    : room.trump;
+  room.message = `Final trick — hidden trump revealed automatically: ${cardTxt}.`;
+  return true;
 }
 
 function legalMoveIds(room, seat) {
@@ -240,6 +263,7 @@ function stateFor(room, seat, isSpectator = false) {
   };
 }
 function broadcast(room) {
+  revealLockedTrumpIfOnlyCard(room);
   room.seats.forEach((s, seat) => {
     if (s && s.connected && !s.bot && s.ws && s.ws.readyState === 1) s.ws.send(JSON.stringify(stateFor(room, seat, false)));
   });
@@ -278,6 +302,9 @@ function startHand(room) {
   room.lastWinnerSeat = null;
   room.liveTrickResolved = false;
   room.aceWonLastTrick = [false, false, false, false];
+  room.botVoidSuits = [[], [], [], []];
+  room.botTrickHistory = [];
+  room.botLastLeadSuit = [null, null, null, null];
   room.tricksWon = [0, 0];
   room.khoti = null;
   room.loserTeam = null;
@@ -363,6 +390,20 @@ function resolveTrick(room) {
     // Otherwise the same player winning the next trick would incorrectly scoop again immediately.
     room.lastWinnerSeat = scoopTeam !== null ? null : winner;
     room.lastTrick = { trick: room.trick, winner };
+    const leadSuitForBots = room.trick[0]?.card?.suit || null;
+    room.botTrickHistory.push({
+      winner,
+      leadSuit: leadSuitForBots,
+      trumpActive: room.trumpActive,
+      plays: room.trick.map((p) => ({
+        seat: p.seat,
+        faceDown: !!p.faceDown,
+        zeroAce: !!p.zeroAce,
+        // A face-down card is not public information, so other bots do not get it.
+        card: p.faceDown ? null : p.card,
+      })),
+    });
+    if (room.botTrickHistory.length > 20) room.botTrickHistory.shift();
     room.trick = [];
     // Correct back-to-back Ace rule: only an Ace that actually wins the trick
     // creates the next-trick Ace penalty for that same player.
@@ -442,6 +483,9 @@ function resetToLobby(room) {
   room.lastWinnerSeat = null;
   room.liveTrickResolved = false;
   room.aceWonLastTrick = [false, false, false, false];
+  room.botVoidSuits = [[], [], [], []];
+  room.botTrickHistory = [];
+  room.botLastLeadSuit = [null, null, null, null];
   room.tricksWon = [0, 0];
   room.scores = [0, 0];
   room.khoti = null;
@@ -486,47 +530,325 @@ function cardStrength(card) {
   if (!card) return 0;
   return RANK_VALUE[card.rank] || 0;
 }
+function partnerOf(seat) { return (seat + 2) % 4; }
+function opponentsOf(seat) { return [0, 1, 2, 3].filter((s) => TEAM_OF(s) !== TEAM_OF(seat)); }
+function suitCounts(cards) {
+  const counts = Object.fromEntries(SUITS.map((s) => [s, 0]));
+  for (const c of cards || []) counts[c.suit] += 1;
+  return counts;
+}
+function effectiveBotValue(room, seat, card) {
+  if (!card) return 0;
+  if (card.rank === "A" && room.aceWonLastTrick[seat]) return 0;
+  return cardStrength(card);
+}
+function botKnowsTrump(room, seat) {
+  return !!room.trumpActive || seat === room.trumpHolder;
+}
+function knownTrumpSuit(room, seat) {
+  return botKnowsTrump(room, seat) ? room.trump : null;
+}
+function isKnownVoid(room, seat, suit) {
+  return !!(suit && room.botVoidSuits?.[seat]?.includes(suit));
+}
+function publicPlayedCards(room) {
+  const cards = [];
+  for (const hist of room.botTrickHistory || []) {
+    for (const p of hist.plays || []) if (p.card) cards.push(p.card);
+  }
+  for (const p of room.trick || []) if (!p.faceDown && p.card) cards.push(p.card);
+  return cards;
+}
+function higherUnseenCount(room, seat, card) {
+  const ownIds = new Set((room.hands[seat] || []).map((c) => c.id));
+  const seenIds = new Set(publicPlayedCards(room).map((c) => c.id));
+  let count = 0;
+  for (const rank of RANKS) {
+    if (RANK_VALUE[rank] <= RANK_VALUE[card.rank]) continue;
+    const id = rank + card.suit;
+    if (!ownIds.has(id) && !seenIds.has(id)) count += 1;
+  }
+  return count;
+}
+function isTopRemaining(room, seat, card) {
+  return higherUnseenCount(room, seat, card) === 0;
+}
+function suitLeadCount(room, suit) {
+  return (room.botTrickHistory || []).filter((h) => h.leadSuit === suit).length;
+}
+function willBotPlayFaceDown(room, seat) {
+  if (room.trumpActive || seat !== room.trumpHolder || room.trick.length === 0) return false;
+  const lead = room.trick[0].card.suit;
+  return !(room.hands[seat] || []).some((c) => c.suit === lead);
+}
+function botCandidateWins(room, seat, card) {
+  const candidate = {
+    seat,
+    card,
+    faceDown: willBotPlayFaceDown(room, seat),
+    zeroAce: card.rank === "A" && room.aceWonLastTrick[seat],
+  };
+  const best = bestPlayInTrick([...room.trick, candidate], room.trump, room.trumpActive);
+  return best === candidate;
+}
+function currentWinningSeat(room) {
+  if (!room.trick.length) return null;
+  return bestPlayInTrick(room.trick, room.trump, room.trumpActive).seat;
+}
+function cardHoldConfidence(room, seat, card) {
+  const leftToPlay = Math.max(0, 4 - (room.trick.length + 1));
+  const higher = higherUnseenCount(room, seat, card);
+  let confidence = 1 - Math.min(0.85, higher * 0.22);
+  if (leftToPlay === 0) confidence = 1;
+  else if (leftToPlay === 1) confidence += 0.16;
+  if (room.trumpActive && card.suit !== room.trump) {
+    const lead = room.trick[0]?.card?.suit || card.suit;
+    const playersAfter = [];
+    for (let step = 1; step <= leftToPlay; step++) playersAfter.push((seat + step) % 4);
+    if (playersAfter.some((s) => isKnownVoid(room, s, lead))) confidence -= 0.35;
+  }
+  if (isTopRemaining(room, seat, card)) confidence += 0.25;
+  return Math.max(0, Math.min(1, confidence));
+}
+function discardScore(room, seat, card, { beforeReveal = false, defender = false } = {}) {
+  const hand = room.hands[seat] || [];
+  const counts = suitCounts(hand);
+  const value = effectiveBotValue(room, seat, card);
+  const trump = knownTrumpSuit(room, seat);
+  let score = value * 5 + counts[card.suit] * 2.2;
+
+  // A zero-value back-to-back Ace is an excellent discard.
+  if (card.rank === "A" && room.aceWonLastTrick[seat]) score -= 45;
+  // Preserve genuine controls and known trumps unless the situation demands them.
+  if (isTopRemaining(room, seat, card)) score += 26;
+  if (card.rank === "A") score += 16;
+  else if (card.rank === "K") score += 9;
+  if (trump && card.suit === trump) score += room.trumpActive ? 13 : 24;
+
+  // Before reveal both sides shed weak cards from short suits. Defenders do it
+  // more aggressively because becoming void is how they expose trump.
+  if (beforeReveal) {
+    score += counts[card.suit] * (defender ? 3.5 : 2.3);
+    if (counts[card.suit] === 1) score -= defender ? 18 : 10;
+    else if (counts[card.suit] === 2) score -= defender ? 8 : 4;
+  }
+  return score;
+}
+function chooseBotDiscard(room, seat, cards) {
+  const biddingTeam = room.highBid ? TEAM_OF(room.highBid.seat) : null;
+  const defender = biddingTeam != null && TEAM_OF(seat) !== biddingTeam;
+  const beforeReveal = !room.trumpActive;
+  return [...cards].sort((a, b) => {
+    const diff = discardScore(room, seat, a, { beforeReveal, defender })
+      - discardScore(room, seat, b, { beforeReveal, defender });
+    return diff || effectiveBotValue(room, seat, a) - effectiveBotValue(room, seat, b);
+  })[0];
+}
+function chooseControlCard(room, seat, suitCards) {
+  const orderedHigh = [...suitCards].sort((a, b) => effectiveBotValue(room, seat, b) - effectiveBotValue(room, seat, a));
+  const orderedLow = [...orderedHigh].reverse();
+  const sure = orderedHigh.find((c) => isTopRemaining(room, seat, c));
+  if (sure) return sure;
+  const efficient = orderedHigh.find((c) => effectiveBotValue(room, seat, c) >= 10 && higherUnseenCount(room, seat, c) <= 1);
+  return efficient || orderedLow[0];
+}
+function choosePreRevealLead(room, seat, cards) {
+  const hand = room.hands[seat] || [];
+  const counts = suitCounts(hand);
+  const partner = partnerOf(seat);
+  const biddingTeam = TEAM_OF(room.highBid.seat);
+  const defender = TEAM_OF(seat) !== biddingTeam;
+  const opponents = opponentsOf(seat);
+  const partnerSignal = room.botLastLeadSuit?.[partner] || null;
+  const knownTrump = knownTrumpSuit(room, seat);
+
+  const bySuit = new Map();
+  for (const card of cards) {
+    if (!bySuit.has(card.suit)) bySuit.set(card.suit, []);
+    bySuit.get(card.suit).push(card);
+  }
+
+  let bestSuit = null;
+  let bestScore = -Infinity;
+  for (const [suit, suitCards] of bySuit) {
+    let score = 0;
+    const count = counts[suit];
+    const led = suitLeadCount(room, suit);
+
+    if (defender) {
+      // Defenders coordinate on short suits. Returning a partner's lead or
+      // leading a suit the partner is already void in accelerates revelation.
+      score += 54 / Math.max(1, count);
+      if (count === 1) score += 34;
+      else if (count === 2) score += 18;
+      if (partnerSignal === suit) score += 42;
+      if (isKnownVoid(room, partner, suit)) score += 85;
+      // Do not give the bidding team free discards when both opponents are known void.
+      score -= opponents.filter((o) => isKnownVoid(room, o, suit)).length * 18;
+      score -= led * 5;
+    } else {
+      // Trump-setting team rotates safe suits. Avoid suits defenders have
+      // publicly shown short/void in and avoid repeatedly draining one suit.
+      score += 36 / Math.max(1, count);
+      score -= led * 17;
+      score -= opponents.filter((o) => isKnownVoid(room, o, suit)).length * 90;
+      score -= opponents.filter((o) => room.botLastLeadSuit?.[o] === suit).length * 22;
+      if (knownTrump && suit === knownTrump) score -= 48;
+      if (isKnownVoid(room, partner, suit)) score += 8;
+    }
+
+    const bestControl = chooseControlCard(room, seat, suitCards);
+    if (bestControl && isTopRemaining(room, seat, bestControl)) score += 14;
+    if (score > bestScore) { bestScore = score; bestSuit = suit; }
+  }
+
+  const suitCards = bySuit.get(bestSuit) || cards;
+  return chooseControlCard(room, seat, suitCards);
+}
+function choosePostRevealLead(room, seat, cards) {
+  const partner = partnerOf(seat);
+  const biddingTeam = TEAM_OF(room.highBid.seat);
+  const myTeam = TEAM_OF(seat);
+  const trumpCards = cards.filter((c) => c.suit === room.trump);
+  const nonTrump = cards.filter((c) => c.suit !== room.trump);
+  const need = Math.max(0, room.highBid.amount - room.tricksWon[biddingTeam]);
+  const opponents = opponentsOf(seat);
+
+  // Winning the next live trick after your own previous win scoops the pile.
+  // Lead the strongest reliable control rather than a random high card.
+  if (room.lastWinnerSeat === seat) {
+    const certainTrump = [...trumpCards]
+      .sort((a, b) => effectiveBotValue(room, seat, b) - effectiveBotValue(room, seat, a))
+      .find((c) => isTopRemaining(room, seat, c));
+    if (certainTrump) return certainTrump;
+    const certain = [...cards]
+      .sort((a, b) => effectiveBotValue(room, seat, b) - effectiveBotValue(room, seat, a))
+      .find((c) => isTopRemaining(room, seat, c));
+    if (certain) return certain;
+  }
+
+  // If partner is known void in a suit, lead that suit so the partner can cut
+  // or discard intelligently. Prefer a low card so we do not waste a control.
+  const partnerCutSuit = SUITS.find((s) => s !== room.trump && isKnownVoid(room, partner, s) && cards.some((c) => c.suit === s));
+  if (partnerCutSuit) {
+    return [...cards.filter((c) => c.suit === partnerCutSuit)]
+      .sort((a, b) => effectiveBotValue(room, seat, a) - effectiveBotValue(room, seat, b))[0];
+  }
+
+  // Bidding side draws trump when it has control or urgently needs tricks.
+  if (trumpCards.length && myTeam === biddingTeam) {
+    const topTrump = [...trumpCards].sort((a, b) => effectiveBotValue(room, seat, b) - effectiveBotValue(room, seat, a))[0];
+    if (isTopRemaining(room, seat, topTrump) || need <= room.pile + 3 || trumpCards.length >= 3) return topTrump;
+  }
+
+  // Defenders use a top trump to seize control, but do not burn a weak trump lead.
+  if (trumpCards.length && myTeam !== biddingTeam) {
+    const topTrump = [...trumpCards].sort((a, b) => effectiveBotValue(room, seat, b) - effectiveBotValue(room, seat, a))[0];
+    if (isTopRemaining(room, seat, topTrump) && room.pile >= 1) return topTrump;
+  }
+
+  const sureWinner = [...nonTrump]
+    .sort((a, b) => effectiveBotValue(room, seat, b) - effectiveBotValue(room, seat, a))
+    .find((c) => isTopRemaining(room, seat, c) && !opponents.some((o) => isKnownVoid(room, o, c.suit)));
+  if (sureWinner) return sureWinner;
+  return chooseBotDiscard(room, seat, cards);
+}
 function chooseBotBid(room, seat) {
   const floor = room.highBid ? room.highBid.amount + 1 : MIN_BID;
   if (floor > 13) return "pass";
   const hand = room.hands[seat] || [];
-  const high = hand.filter((c) => ["A", "K", "Q", "J"].includes(c.rank)).length;
+  const counts = suitCounts(hand);
+  let bestSuitPower = 0;
+  for (const suit of SUITS) {
+    const suited = hand.filter((c) => c.suit === suit);
+    const honors = suited.reduce((n, c) => n + Math.max(0, cardStrength(c) - 9), 0);
+    const controls = suited.filter((c) => c.rank === "A" || c.rank === "K").length;
+    bestSuitPower = Math.max(bestSuitPower, suited.length * 2.4 + honors * 0.8 + controls * 2.2);
+  }
   const aces = hand.filter((c) => c.rank === "A").length;
-  const suitCounts = Object.fromEntries(SUITS.map((s) => [s, hand.filter((c) => c.suit === s).length]));
-  const longest = Math.max(...Object.values(suitCounts));
-  let ceiling = 7 + Math.min(3, Math.floor((high + aces + Math.max(0, longest - 2)) / 2));
-  if (aces >= 2) ceiling += 1;
-  if (Math.random() < 0.16) ceiling += 1;
+  const kings = hand.filter((c) => c.rank === "K").length;
+  const queens = hand.filter((c) => c.rank === "Q").length;
+  const voidPotential = Object.values(counts).filter((n) => n <= 1).length;
+  const evaluation = bestSuitPower + aces * 2.8 + kings * 1.5 + queens * 0.7 + voidPotential * 0.45;
+  let ceiling = 7 + Math.floor(evaluation / 7.2);
   ceiling = Math.max(7, Math.min(11, ceiling));
+
+  // Do not casually outbid a partner in the one-round auction.
+  if (room.highBid && TEAM_OF(room.highBid.seat) === TEAM_OF(seat)) {
+    if (ceiling <= room.highBid.amount + 1) return "pass";
+  }
   return floor <= ceiling ? floor : "pass";
 }
 function chooseBotTrump(room, seat) {
   const hand = room.hands[seat] || [];
-  const scoreCard = (card) => {
-    const sameSuit = hand.filter((c) => c.suit === card.suit).length;
-    return cardStrength(card) * 3 + sameSuit * 5 + (card.rank === "A" ? 7 : card.rank === "K" ? 4 : 0);
-  };
-  return [...hand].sort((a, b) => scoreCard(b) - scoreCard(a))[0]?.id;
+  if (!hand.length) return null;
+  const suits = SUITS.map((suit) => {
+    const cards = hand.filter((c) => c.suit === suit);
+    const honors = cards.reduce((n, c) => n + Math.max(0, cardStrength(c) - 9), 0);
+    const controls = cards.filter((c) => c.rank === "A" || c.rank === "K").length;
+    const sequence = cards.filter((c) => cardStrength(c) >= 10).length;
+    return { suit, cards, score: cards.length * 8 + honors * 2 + controls * 7 + sequence * 2 };
+  }).filter((x) => x.cards.length);
+  suits.sort((a, b) => b.score - a.score || b.cards.length - a.cards.length);
+  const chosenSuit = suits[0];
+
+  // The selected exact card is locked before reveal. Lock the weakest card in
+  // the strongest suit, preserving A/K/Q as playable controls.
+  const lowest = [...chosenSuit.cards].sort((a, b) => cardStrength(a) - cardStrength(b))[0];
+  return lowest?.id || chosenSuit.cards[0]?.id || null;
 }
 function chooseBotCard(room, seat) {
   const ids = legalMoveIds(room, seat);
   const cards = (room.hands[seat] || []).filter((c) => ids.includes(c.id));
   if (!cards.length) return null;
-  const zeroAceFor = (c) => c.rank === "A" && room.aceWonLastTrick[seat];
-  const playValue = (c) => zeroAceFor(c) ? 0 : cardStrength(c);
-  const lowFirst = [...cards].sort((a, b) => playValue(a) - playValue(b));
-  const highFirst = [...cards].sort((a, b) => playValue(b) - playValue(a));
+
   if (room.trick.length === 0) {
-    const nonAce = highFirst.find((c) => !(c.rank === "A" && room.aceWonLastTrick[seat]));
-    return (nonAce || highFirst[0]).id;
+    const lead = room.trumpActive
+      ? choosePostRevealLead(room, seat, cards)
+      : choosePreRevealLead(room, seat, cards);
+    return (lead || cards[0]).id;
   }
-  const winning = lowFirst.filter((c) => {
-    const candidate = { seat, card: c, faceDown: false, zeroAce: zeroAceFor(c) };
-    const best = bestPlayInTrick([...room.trick, candidate], room.trump, room.trumpActive);
-    return best === candidate;
-  });
-  // Try to win cheaply if possible; otherwise throw the cheapest legal card.
-  return (winning[0] || lowFirst[0]).id;
+
+  // The setter's pre-reveal void card will be face down and cannot win.
+  if (willBotPlayFaceDown(room, seat)) return chooseBotDiscard(room, seat, cards).id;
+
+  const partner = partnerOf(seat);
+  const winningSeat = currentWinningSeat(room);
+  const partnerWinning = winningSeat === partner;
+  const winningCards = cards
+    .filter((c) => botCandidateWins(room, seat, c))
+    .sort((a, b) => effectiveBotValue(room, seat, a) - effectiveBotValue(room, seat, b));
+
+  // Never overtake a partner who is already winning. This preserves controls
+  // and, after reveal, protects the partner's chance to complete a scoop.
+  if (partnerWinning) return chooseBotDiscard(room, seat, cards).id;
+  if (!winningCards.length) return chooseBotDiscard(room, seat, cards).id;
+
+  const cheapestWin = winningCards[0];
+  const lastToPlay = room.trick.length === 3;
+  const biddingTeam = TEAM_OF(room.highBid.seat);
+  const myTeam = TEAM_OF(seat);
+  const defender = myTeam !== biddingTeam;
+  const opponentAboutToScoop = room.trumpActive && winningSeat === room.lastWinnerSeat;
+  const bidNeed = Math.max(0, room.highBid.amount - room.tricksWon[biddingTeam]);
+  const bidClose = bidNeed <= room.pile + 3;
+  const confidence = cardHoldConfidence(room, seat, cheapestWin);
+
+  let shouldWin = lastToPlay || opponentAboutToScoop;
+  if (!room.trumpActive) {
+    // Before reveal, defenders value the lead because it lets them attack a
+    // short suit. The setting team also takes control when it can do so
+    // efficiently, instead of blindly throwing away every honor.
+    if (defender) shouldWin ||= confidence >= 0.56;
+    else shouldWin ||= confidence >= 0.7 || effectiveBotValue(room, seat, cheapestWin) <= 11;
+  } else {
+    const pileValue = room.pile + 1;
+    if (myTeam === biddingTeam) shouldWin ||= bidClose || pileValue >= 2 || confidence >= 0.72;
+    else shouldWin ||= bidClose || pileValue >= 2 || confidence >= 0.66;
+  }
+
+  if (shouldWin) return cheapestWin.id;
+  return chooseBotDiscard(room, seat, cards).id;
 }
 function runBotTurn(code) {
   const room = rooms.get(code);
@@ -779,6 +1101,13 @@ function handle(ws, msg) {
       const isDefender = room.trumpHolder != null && TEAM_OF(ws.seat) !== TEAM_OF(room.trumpHolder);
       const isTrumpHolder = room.trumpHolder != null && ws.seat === room.trumpHolder;
       let faceDown = false;
+
+      // Public partnership inference for bots: a lead is a signal, and failing
+      // to follow publicly proves that this seat is void in the led suit.
+      if (!lead) room.botLastLeadSuit[ws.seat] = card.suit;
+      if (lead && !hasLead && !room.botVoidSuits[ws.seat].includes(lead)) {
+        room.botVoidSuits[ws.seat].push(lead);
+      }
 
       // Only the player who set the trump may play face down when void before reveal.
       // Their partner must play face up.
