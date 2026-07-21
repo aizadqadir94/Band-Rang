@@ -136,3 +136,8 @@ Bots now use a fair, public-information partnership strategy instead of simply p
 ## Private trump-card highlight
 
 After the hidden trump has been selected, a human member of the trump-setting team can double-tap the top-left **Bidding / Round** badge. Only that player’s device receives the trump suit, and only that player’s matching hand cards glow. Double-tap again to turn the highlight off. Opponents and spectators cannot use the private hint.
+
+## Latest fixes
+
+- Any seated player on either team can privately highlight cards of the selected trump suit by double-tapping the top-left round/bidding badge.
+- If hidden trump survives until the final trick, the server reveals and unlocks it while calculating legal moves, so the hand cannot get stuck.

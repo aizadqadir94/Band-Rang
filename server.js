@@ -174,18 +174,18 @@ function publicLastTrick(lastTrick) {
   return { winner: lastTrick.winner, trick: lastTrick.trick.map(publicPlay) };
 }
 
-function revealLockedTrumpIfOnlyCard(room) {
-  // If trump was never exposed during the first 12 tricks, the bidder reaches
-  // the final trick with the selected trump as their only card. The card was
-  // intentionally locked while trump was hidden, so reveal it now to prevent
-  // an empty legal-move list and a stuck hand.
+function revealLockedTrumpIfOnlyCard(room, seat = room?.turn) {
+  // If trump survives hidden until the final trick, the setter's selected card
+  // becomes their only remaining card. Reveal and unlock it before legal moves
+  // are calculated. Keeping this check inside legalMoveIds makes it work for
+  // human players, bots, reconnects and any state-broadcast ordering.
   if (!room || room.phase !== "playing" || room.trumpActive) return false;
-  if (room.turn !== room.trumpHolder || room.trumpHolder == null) return false;
+  if (room.trumpHolder == null || room.turn !== seat || seat !== room.trumpHolder) return false;
 
-  const hand = room.hands[room.trumpHolder] || [];
+  const hand = room.hands[seat] || [];
   if (hand.length !== 1 || hand[0].id !== room.trumpCardId) return false;
 
-  revealTrump(room, room.trumpHolder, false);
+  revealTrump(room, seat, false);
   const cardTxt = room.trumpCard
     ? `${room.trumpCard.rank}${room.trumpCard.suit}`
     : room.trump;
@@ -195,6 +195,11 @@ function revealLockedTrumpIfOnlyCard(room) {
 
 function legalMoveIds(room, seat) {
   if (room.phase !== "playing" || room.turn !== seat) return [];
+
+  // Authoritative final-trick safeguard: never return an empty legal list
+  // merely because the setter's last remaining card is the locked trump.
+  revealLockedTrumpIfOnlyCard(room, seat);
+
   let hand = room.hands[seat];
 
   // The exact hidden trump card is locked in the bidder's hand until trump is revealed.
@@ -263,7 +268,7 @@ function stateFor(room, seat, isSpectator = false) {
   };
 }
 function broadcast(room) {
-  revealLockedTrumpIfOnlyCard(room);
+  revealLockedTrumpIfOnlyCard(room, room.turn);
   room.seats.forEach((s, seat) => {
     if (s && s.connected && !s.bot && s.ws && s.ws.readyState === 1) s.ws.send(JSON.stringify(stateFor(room, seat, false)));
   });
@@ -1084,15 +1089,12 @@ function handle(ws, msg) {
       break;
     }
     case "requestTrumpHighlight": {
-      // Private helper: only a seated member of the trump-setting team may
-      // request the hidden trump suit. The reply goes only to this socket;
-      // nothing is added to shared room state or broadcast to other players.
+      // Any seated player on either team may privately highlight cards matching
+      // the selected trump suit. The reply is sent only to this socket and is
+      // never stored in shared state or broadcast to the other devices.
       if (!room || ws.isSpectator || ws.seat == null) return;
       if (!room.trump || room.trumpHolder == null || room.phase === "lobby" || room.phase === "bidding" || room.phase === "pickTrump") {
         return send(ws, { type: "trumpHighlight", suit: null, message: "Trump has not been selected yet." });
-      }
-      if (TEAM_OF(ws.seat) !== TEAM_OF(room.trumpHolder)) {
-        return send(ws, { type: "trumpHighlight", suit: null, message: "This private highlight is available only to the trump-setting team." });
       }
       return send(ws, { type: "trumpHighlight", suit: room.trump });
     }
